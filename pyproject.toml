@@ -2,10 +2,10 @@
 name = "automate_splitwise_expenses"
 version = "0.1.0"
 description = "Automate uploading expenses on Splitwise."
-authors = ["Arthur Dent <arthur@dent.space>"]
+authors = ["Nemish Mehta <23.nemishmehta@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "python_minimal_boilerplate"}]
+packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
