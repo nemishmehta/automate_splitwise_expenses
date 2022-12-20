@@ -1,5 +1,5 @@
-from python_minimal_boilerplate import foo
+from src.main import app
 
 
-def test_hello_world():
-    assert foo.hello() == "world"
+def test_placeholder():
+    assert app.placeholder() == "Hello"
