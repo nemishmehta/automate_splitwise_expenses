@@ -30,7 +30,7 @@ repos:
         name: pytest
         stages: [commit]
         types: [python]
-        entry: poetry run pytest
+        entry: poetry run pytest -s
         language: system
         pass_filenames: false
         always_run: true
