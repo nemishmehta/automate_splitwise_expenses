@@ -1,15 +1,20 @@
+from dotenv import dotenv_values
 from splitwise import Splitwise
 from splitwise.expense import Expense, ExpenseUser
 
+config = dotenv_values(".env")
+consumer_key = config["CONSUMER_KEY"]
+consumer_secret = config["CONSUMER_SECRET"]
+api_key = config["API_KEY"]
 test_obj = Splitwise(
-    "xsjkOt0XEwwMbvfJbZPDlBxQ5dQAjLTvDElbudPY",
-    "l1vIWVnDUWsntXinDsMlGyDPwALlNaCfCZPKowUk",
-    api_key="0tJ7nWYkgfcWeQ8St2mxlAFGMjIjgpQhhFWLd9nW",
+    consumer_key,
+    consumer_secret,
+    api_key=api_key,
 )
 
-current_user = test_obj.getFriends()
-for friend in current_user:
-    print(f"{friend.getFirstName()}: {friend.getId()}")
+# current_user = test_obj.getFriends()
+# for friend in current_user:
+#     print(f"{friend.getFirstName()}: {friend.getId()}")
 
 expense = Expense()
 expense.setCost("10.0")

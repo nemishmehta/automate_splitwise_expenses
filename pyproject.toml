@@ -10,6 +10,7 @@ packages = [{include = "python_minimal_boilerplate"}]
 [tool.poetry.dependencies]
 python = "^3.9"
 splitwise = "^2.5.0"
+python-dotenv = "^0.21.0"
 
 
 [tool.poetry.group.dev.dependencies]
