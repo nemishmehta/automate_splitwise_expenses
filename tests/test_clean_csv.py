@@ -1,20 +1,29 @@
+from typing import Dict, List
+
 from src.main import clean_csv
 
-# Map these to required headers --> Date, Cost, Description
-# Remove negative sign from field if it exists
-# Check if positive sign needs to be in the file
-# Create clean csv
+test_class = clean_csv.CleanCsv("./tests/data/raw/test_data_raw.csv")
+raw_headers: List[str] = [
+    "Statement",
+    "Date",
+    "Value date",
+    "Account",
+    "Description",
+    "Amount",
+    "Currency",
+]
 
-test_class = clean_csv.CleanCsv("./tests/data/raw/test_data.csv")
+mapped_headers: Dict[str, str] = {
+    "date": "Date",
+    "amount": "Amount",
+    "description": "Description",
+    "currency": "Currency",
+}
 
 
-def test_extract_headers():
-    assert test_class.extract_headers() == [
-        "Statement",
-        "Date",
-        "Value date",
-        "Account",
-        "Description",
-        "Amount",
-        "Currency",
-    ]
+def test_map_headers():
+    assert test_class.map_headers(raw_headers) == mapped_headers
+
+
+# def test_clean_amount_values():
+#     assert test_class.clean_amount_values

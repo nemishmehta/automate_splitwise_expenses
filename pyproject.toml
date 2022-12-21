@@ -11,6 +11,7 @@ packages = [{include = "src"}]
 python = "^3.9"
 splitwise = "^2.5.0"
 python-dotenv = "^0.21.0"
+pandas = "^1.5.2"
 
 
 [tool.poetry.group.dev.dependencies]
