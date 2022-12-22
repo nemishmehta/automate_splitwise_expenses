@@ -9,7 +9,7 @@ import pandas as pd
 
 class CleanCsv:
     def __init__(self, file_path: str) -> None:
-        self.file_path: str = file_path
+        self.file_path: str = str(file_path)
 
     def run_pipeline(self) -> None:
 
