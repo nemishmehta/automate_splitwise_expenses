@@ -13,14 +13,26 @@ class CleanCsv:
 
     def run_pipeline(self):
 
-        with open(self.file_path) as csv_file:
-            dialect = csv.Sniffer().sniff(csv_file.read(1024))
+        print("Cleaning csv.\n")
+        try:
+            with open(self.file_path) as csv_file:
+                dialect = csv.Sniffer().sniff(csv_file.read(1024))
 
-        raw_df: pd.DataFrame = pd.read_csv(
-            self.file_path, sep=dialect.delimiter
-        )
+            delimiter = dialect.delimiter
+            raw_df: pd.DataFrame = pd.read_csv(self.file_path, sep=delimiter)
+        except Exception:
+            delimiter = input(
+                (
+                    "The program was not able to detect the delimiter "
+                    "automatically. "
+                    "Please provide the delimiter (,|;|space|tab) - "
+                )
+            )
+            raw_df: pd.DataFrame = pd.read_csv(self.file_path, sep=delimiter)
         raw_headers: List[str] = [col for col in raw_df]
+
         mapped_headers: Dict[str, str] = self.map_headers(raw_headers)
+
         clean_df: pd.DataFrame = self.clean_values(raw_df, mapped_headers)
 
         self.write_output_file(clean_df)
@@ -28,7 +40,7 @@ class CleanCsv:
     def map_headers(self, raw_headers) -> Dict[str, str]:
         """
         Request users to identify headers from given csv that match date,
-        amount, description.
+        amount, description, currency.
 
         Args:
             raw_headers (List[str]): list of headers extracted from provided
@@ -43,8 +55,17 @@ class CleanCsv:
             "date": "",
             "amount": "",
             "description": "",
+            "currency": "",
         }
 
+        print("\nStep 1: Let's identify the required columns.\n")
+        print(
+            (
+                "Given below are the columns from your csv with a number "
+                "assigned to each. Provide the relevant number for the "
+                "following questions.\n"
+            )
+        )
         for key in mapped_headers.keys():
             for index, item in enumerate(raw_headers):
                 print(index, item)
@@ -52,13 +73,18 @@ class CleanCsv:
             while mapped_headers[key] == "":
                 try:
                     raw_headers_index: int = int(
-                        input(f"Enter the number that matches {key} header - ")
+                        input(
+                            (
+                                f"\nEnter the number that matches the {key} "
+                                "column - "
+                            )
+                        )
                     )
                     mapped_headers[key] = raw_headers[raw_headers_index]
                 except ValueError:
-                    print("Please enter a valid number.")
+                    print("\nPlease enter a valid number.")
                 except IndexError:
-                    print("Please enter a value within the given list.")
+                    print("\nPlease enter a value within the given list.")
 
         return mapped_headers
 
@@ -107,6 +133,7 @@ class CleanCsv:
                 mapped_headers["date"],
                 mapped_headers["amount"],
                 mapped_headers["description"],
+                mapped_headers["currency"],
             ]
         ].copy()
 
@@ -128,34 +155,27 @@ class CleanCsv:
         Returns:
             pd.DataFrame: dataframe with clean amount values
         """
+        print("Cleaning amount column.\n")
         clean_df: pd.DataFrame = self.drop_null_amount_values(raw_df)
 
-        for index, amount in enumerate(clean_df["amount"]):
-            amount: str = str(amount)
-            if amount.startswith("-"):
-                clean_amount: str = self.clean_value(amount)
-                clean_df.at[index, "amount"] = clean_amount
+        values_wo_sign = len(
+            clean_df[
+                (~clean_df["amount"].str.startswith("-"))
+                & (~clean_df["amount"].str.startswith("+"))
+            ]
+        )
+        if values_wo_sign > 0:
+            clean_df = self.clean_amount_wo_sign(clean_df)
 
-            elif amount.startswith("+"):
-                print(clean_df.loc[[index]])
-                valid_responses: List[str] = ["y", "N"]
-                user_input: str = ""
+        values_with_pos_values = len(
+            clean_df[clean_df["amount"].str.startswith("+")]
+        )
+        if values_with_pos_values > 0:
+            clean_df = self.clean_amount_with_pos_sign(clean_df)
 
-                while user_input not in valid_responses:
-                    user_input = input(
-                        "Do you want to keep this expense [y/N]? - "
-                    )
-                    print("\n")
-
-                if user_input == "y":
-                    clean_amount: str = self.clean_value(amount)
-                    clean_df.at[index, "amount"] = clean_amount
-                elif user_input == "N":
-                    clean_df.drop(clean_df.index[index], inplace=True)
-
-            else:
-                clean_amount: str = self.clean_value(amount)
-                clean_df.at[index, "amount"] = clean_amount
+        clean_df["amount"] = clean_df["amount"].apply(
+            lambda x: self.clean_value(x)
+        )
 
         return clean_df.reset_index(drop=True)
 
@@ -169,17 +189,82 @@ class CleanCsv:
         Returns:
             pd.DataFrame: dataframe with no rows of null amount values
         """
-        print(
-            (
-                "The following rows have no amount values so they will not be "
-                "considered."
+        total_empty_amount_vals = raw_df["amount"].isna().sum()
+        if total_empty_amount_vals > 0:
+            print("Dropping empty amount values.\n")
+            print(
+                (
+                    "The following rows have no amount values so they will be "
+                    "discarded.\n"
+                )
             )
-        )
-        print(raw_df[raw_df["amount"].isna()])
-        print("----------------------------------------------------\n")
+            print(raw_df[raw_df["amount"].isna()])
+            print("\n----------------------------------------------------\n")
+
         clean_df = raw_df.dropna(subset="amount").reset_index(drop=True)
 
         return clean_df
+
+    def clean_amount_wo_sign(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Identify all amount values without any sign and ask user if they want
+        to keep or discard the values.
+
+        Args:
+            df (pd.DataFrame): raw dataframe
+
+        Returns:
+            pd.DataFrame: dataframe with/without amount values with no sign
+            depending on user's choice.
+        """
+        print("Cleaning amounts with no sign.\n")
+        print(
+            df.loc[
+                (~df["amount"].str.startswith("-"))
+                & (~df["amount"].str.startswith("+"))
+            ]
+        )
+        user_input = input(
+            (
+                "\nThe above transactions do not have any sign (+|-) in "
+                "the amount column. Are these expenses that need to be kept "
+                "[y|N]? - "
+            )
+        )
+        if user_input == "N":
+            amount_wo_sign_df = df[
+                (df["amount"].str.startswith("-"))
+                | (df["amount"].str.startswith("+"))
+            ]
+            return amount_wo_sign_df
+        else:
+            return df
+
+    def clean_amount_with_pos_sign(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Identify all amount values with a positive sign and ask user if they
+        want to keep or discard the values.
+
+        Args:
+            df (pd.DataFrame): raw dataframe
+
+        Returns:
+            pd.DataFrame: dataframe with/without amount values with positive
+            sign depending on user's choice.
+        """
+        print("\nCleaning amounts with positive sign.\n")
+        print(df.loc[df["amount"].str.startswith("+")])
+        user_input = input(
+            (
+                "\nThe above transactions have a positive sign in "
+                "the amount column. Do you want to keep them [y|N] - "
+            )
+        )
+        if user_input == "N":
+            amount_wo_pos_sign_df = df[~df["amount"].str.startswith("+")]
+            return amount_wo_pos_sign_df
+        else:
+            return df
 
     def clean_value(self, amount: str) -> str:
         """
@@ -205,24 +290,30 @@ class CleanCsv:
         Returns:
             pd.DataFrame: dataframe with clean description values
         """
-        raw_df["description"] = raw_df["description"].fillna("")
+        total_empty_desc_vals = raw_df["description"].isna().sum()
+        if total_empty_desc_vals > 0:
+            print("\nCleaning description column values.\n")
 
-        for index, desc in enumerate(raw_df["description"]):
-            if desc == "":
-                print(raw_df.loc[[index]])
-                clean_desc = input(
-                    (
-                        "Please provide a description or "
-                        "press Enter to input default value (Expense) - "
+            raw_df["description"] = raw_df["description"].fillna("")
+
+            for index, desc in enumerate(raw_df["description"]):
+                if desc == "":
+                    print(raw_df.loc[[index]])
+                    clean_desc = input(
+                        (
+                            "\nThe above transaction is missing a description."
+                            " Please provide one or "
+                            "press Enter to input default value (Expense) - "
+                        )
                     )
-                )
-                if clean_desc != "":
-                    raw_df.at[index, "description"] = clean_desc
-                else:
-                    raw_df.at[index, "description"] = "Expense"
-                print("\n")
+                    if clean_desc != "":
+                        raw_df.at[index, "description"] = clean_desc
+                    else:
+                        raw_df.at[index, "description"] = "Expense"
 
-        return raw_df
+            return raw_df
+        else:
+            return raw_df
 
     def clean_date_values(self, raw_df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -235,26 +326,33 @@ class CleanCsv:
         Returns:
             pd.DataFrame: dataframe with clean date values.
         """
-        raw_df["date"] = raw_df["date"].fillna("")
+        total_empty_date_vals = raw_df["date"].isna().sum()
+        if total_empty_date_vals > 0:
+            print("\nCleaning date column values.\n")
 
-        for index, raw_date in enumerate(raw_df["date"]):
-            if raw_date == "":
-                print(raw_df.loc[[index]])
-                clean_date = input(
-                    (
-                        "Please provide a date (DD/MM/YYYY) or "
-                        "press Enter to input default value (current date) - "
-                    )
-                )
-                if clean_date != "":
-                    raw_df.at[index, "date"] = clean_date
-                else:
-                    raw_df.at[index, "date"] = date.today().strftime(
-                        "%d/%m/%Y"
-                    )
-                print("\n")
+            raw_df["date"] = raw_df["date"].fillna("")
 
-        return raw_df
+            for index, raw_date in enumerate(raw_df["date"]):
+                if raw_date == "":
+                    print(raw_df.loc[[index]])
+                    clean_date = input(
+                        (
+                            "\nThe above transaction is missing a date. "
+                            "Please provide a date (DD/MM/YYYY) or "
+                            "press Enter to input default value (current date)"
+                            " - "
+                        )
+                    )
+                    if clean_date != "":
+                        raw_df.at[index, "date"] = clean_date
+                    else:
+                        raw_df.at[index, "date"] = date.today().strftime(
+                            "%d/%m/%Y"
+                        )
+
+            return raw_df
+        else:
+            return raw_df
 
     def write_output_file(self, clean_df: pd.DataFrame) -> None:
         """
@@ -274,7 +372,3 @@ class CleanCsv:
             full_path = os.path.join(curr_dir, result_dir)
             os.makedirs(full_path)
             clean_df.to_csv(f"{full_path}/{file_name}_clean.csv", index=False)
-
-
-test_class = CleanCsv("./tests/data/raw/test_data_raw.csv")
-test_class.run_pipeline()
