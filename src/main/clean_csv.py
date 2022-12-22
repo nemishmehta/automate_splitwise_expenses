@@ -11,7 +11,7 @@ class CleanCsv:
     def __init__(self, file_path: str) -> None:
         self.file_path: str = file_path
 
-    def run_pipeline(self):
+    def run_pipeline(self) -> None:
 
         print("Cleaning csv.\n")
         try:
@@ -366,9 +366,11 @@ class CleanCsv:
         file_name = self.file_path.rsplit("/", 1)[-1].rsplit(".csv", 1)[0]
         if os.path.exists(result_dir):
             clean_df.to_csv(
-                f"./{result_dir}/{file_name}_clean.csv", index=False
+                f"./{result_dir}/{file_name}_clean.csv", index=False, sep=";"
             )
         else:
             full_path = os.path.join(curr_dir, result_dir)
             os.makedirs(full_path)
-            clean_df.to_csv(f"{full_path}/{file_name}_clean.csv", index=False)
+            clean_df.to_csv(
+                f"{full_path}/{file_name}_clean.csv", index=False, sep=";"
+            )
