@@ -37,7 +37,7 @@ class CleanCsv:
 
         self.write_output_file(clean_df)
 
-    def map_headers(self, raw_headers) -> Dict[str, str]:
+    def map_headers(self, raw_headers: List[str]) -> Dict[str, str]:
         """
         Request users to identify headers from given csv that match date,
         amount, description, currency.
@@ -68,7 +68,7 @@ class CleanCsv:
         )
         for key in mapped_headers.keys():
             for index, item in enumerate(raw_headers):
-                print(index, item)
+                print(f"{index} - {item}")
 
             while mapped_headers[key] == "":
                 try:
@@ -363,7 +363,9 @@ class CleanCsv:
         """
         result_dir = "src/data/clean"
         curr_dir = os.getcwd()
-        file_name = self.file_path.rsplit("/", 1)[-1].rsplit(".csv", 1)[0]
+        file_name = re.split(r"[\/\\]", self.file_path)[-1].rsplit(".csv", 1)[
+            0
+        ]
         if os.path.exists(result_dir):
             clean_df.to_csv(
                 f"./{result_dir}/{file_name}_clean.csv", index=False, sep=";"
