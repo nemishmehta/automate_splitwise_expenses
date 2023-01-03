@@ -59,24 +59,35 @@ class UploadExpense:
             for key, val in expense.items():
                 print(f"{key}: {val}")
 
-            data: str = None
-
-            while data != "":
-                expense_info: Dict[
-                    str, Union[str, float, splitwise.category.Category, int]
-                ] = self.collect_data(
-                    user_personal_expense_group_id, total_expense
+            user_input: str = input(
+                (
+                    "\nPress Enter if you want to upload this expense on "
+                    "Splitwise or press any other key to go to the next "
+                    "expense - "
                 )
-                data = self.confirm_data(expense, expense_info)
+            )
+            if user_input == "":
+                data: str = None
 
-            if expense_info["group_id"] == user_personal_expense_group_id:
-                self.upload_expense_personal_group(
-                    expense, expense_info, total_expense
-                )
+                while data != "":
+                    expense_info: Dict[
+                        str,
+                        Union[str, float, splitwise.category.Category, int],
+                    ] = self.collect_data(
+                        user_personal_expense_group_id, total_expense
+                    )
+                    data = self.confirm_data(expense, expense_info)
+
+                if expense_info["group_id"] == user_personal_expense_group_id:
+                    self.upload_expense_personal_group(
+                        expense, expense_info, total_expense
+                    )
+                else:
+                    self.upload_expense_other_groups(
+                        expense, expense_info, total_expense
+                    )
             else:
-                self.upload_expense_other_groups(
-                    expense, expense_info, total_expense
-                )
+                continue
 
     def get_user_info(
         self,
@@ -369,7 +380,6 @@ class UploadExpense:
                 print("\nPlease enter a value within the given list.")
             except KeyError:
                 print("\nPlease enter a value within the given list.")
-        print(chosen_friend_name)
         return chosen_friend_name, chosen_friend_id
 
     def choose_group(
