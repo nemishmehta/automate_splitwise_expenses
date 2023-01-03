@@ -59,39 +59,15 @@ class UploadExpense:
             for key, val in expense.items():
                 print(f"{key}: {val}")
 
-            confirm_data: str = None
+            data: str = None
 
-            while confirm_data != "":
+            while data != "":
                 expense_info: Dict[
                     str, Union[str, float, splitwise.category.Category, int]
                 ] = self.collect_data(
                     user_personal_expense_group_id, total_expense
                 )
-                print("\n")
-                for key, val in expense.items():
-                    if (
-                        key == "sub_category_obj"
-                        or key == "group_id"
-                        or key == "friend_id"
-                    ):
-                        continue
-                    else:
-                        print(f"{key}: {val}")
-                for key, val in expense_info.items():
-                    if (
-                        key == "sub_category_obj"
-                        or key == "group_id"
-                        or key == "friend_id"
-                    ):
-                        continue
-                    else:
-                        print(f"{key}: {val}")
-                confirm_data = input(
-                    (
-                        "\nPress Enter to confirm data or any other key to "
-                        "re-enter data - "
-                    )
-                )
+                data = self.confirm_data(expense, expense_info)
             if expense_info["group_id"] == user_personal_expense_group_id:
                 self.upload_expense_personal_group(
                     expense, expense_info, total_expense
@@ -312,6 +288,53 @@ class UploadExpense:
                 "user_2_share": user_2_share,
             }
             return expense_info
+
+    def confirm_data(
+        self,
+        expense: Dict[str, str],
+        expense_info: Dict[
+            str, Union[str, float, splitwise.category.Category, int]
+        ],
+    ) -> str:
+        """
+        Print all relevant data and ask user for confirmation
+
+        Args:
+            expense (Dict[str, str]): expense from ccsv file
+            expense_info (Dict[
+                    str, Union[str, float, splitwise.category.Category, int]]):
+                    expense info selected by user
+
+        Returns:
+            str: Empty string if confirmed by user
+        """
+        print("\n")
+        for key, val in expense.items():
+            if (
+                key == "sub_category_obj"
+                or key == "group_id"
+                or key == "friend_id"
+            ):
+                continue
+            else:
+                print(f"{key}: {val}")
+        for key, val in expense_info.items():
+            if (
+                key == "sub_category_obj"
+                or key == "group_id"
+                or key == "friend_id"
+            ):
+                continue
+            else:
+                print(f"{key}: {val}")
+        data = input(
+            (
+                "\nPress Enter to confirm data or any other key to "
+                "re-enter data - "
+            )
+        )
+
+        return data
 
     def choose_friend(self, group_id: int) -> Tuple[str, int]:
         """
