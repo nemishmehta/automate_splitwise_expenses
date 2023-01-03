@@ -697,7 +697,3 @@ class UploadExpense:
             print("\nExpense successfully added to Splitwise.")
         else:
             print(errors.getErrors())
-
-
-test_class = UploadExpense("src/data/clean/test_data_raw_clean.csv")
-test_class.run_pipeline()
