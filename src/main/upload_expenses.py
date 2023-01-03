@@ -68,6 +68,7 @@ class UploadExpense:
                     user_personal_expense_group_id, total_expense
                 )
                 data = self.confirm_data(expense, expense_info)
+
             if expense_info["group_id"] == user_personal_expense_group_id:
                 self.upload_expense_personal_group(
                     expense, expense_info, total_expense
