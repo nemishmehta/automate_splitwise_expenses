@@ -85,7 +85,8 @@ class CleanCsv:
                     print("\nPlease enter a valid number.")
                 except IndexError:
                     print("\nPlease enter a value within the given list.")
-
+                finally:
+                    print("\n")
         return mapped_headers
 
     def clean_values(
@@ -119,14 +120,15 @@ class CleanCsv:
     def return_reqd_columns(
         self, raw_df: pd.DataFrame, mapped_headers: List[str]
     ) -> pd.DataFrame:
-        """_summary_
+        """
+        Return raw dataframe with only required columns.
 
         Args:
-            raw_df (pd.DataFrame): _description_
-            mapped_headers (List[str]): _description_
+            raw_df (pd.DataFrame): raw dataframe created from csv file.
+            mapped_headers (List[str]): required headers.
 
         Returns:
-            pd.DataFrame: _description_
+            pd.DataFrame: raw dataframe with only required columns.
         """
         raw_df_only_reqd_columns: pd.DataFrame = raw_df[
             [
@@ -257,10 +259,11 @@ class CleanCsv:
         user_input = input(
             (
                 "\nThe above transactions have a positive sign in "
-                "the amount column. Do you want to keep them [y|N] - "
+                "the amount column. Press enter to discard them or any other "
+                "key to keep the values - "
             )
         )
-        if user_input == "N":
+        if user_input == "":
             amount_wo_pos_sign_df = df[~df["amount"].str.startswith("+")]
             return amount_wo_pos_sign_df
         else:
@@ -275,8 +278,9 @@ class CleanCsv:
         Returns:
             str: clean amount string
         """
+        amount_wo_fullstop = amount.replace(".", "")
         clean_amount: str = (
-            re.search(r"\d+,\d+", amount).group().replace(",", ".")
+            re.search(r"\d+,\d+", amount_wo_fullstop).group().replace(",", ".")
         )
         return clean_amount
 
