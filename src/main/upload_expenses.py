@@ -235,17 +235,6 @@ class UploadExpense:
                 str, Union[str, float, splitwise.category.Category, int]]:
                 Dictionary containing data to create expense
         """
-        # user_input_friends_count = input(
-        #     (
-        #         "\nPress Enter if you want to split the expenses with only "
-        #         "one friend or press any other key if you want to "
-        #         "split each expense with a different friend - "
-        #     )
-        # )
-
-        # if user_input_friends_count == "":
-        #     friend_name, friend_id = self.choose_friend()
-
         (
             sub_category_name,
             sub_category_obj,
