@@ -39,7 +39,9 @@ class UploadExpense:
             self.user_groups_members,
         ) = self.get_user_info()
         user_personal_expense_group_id: int = (
-            self.choose_personal_expense_group()
+            self.choose_personal_expense_group(
+                self.user_groups, self.user_groups_members, self.user_id
+            )
         )
         (
             self.categories,
@@ -126,7 +128,9 @@ class UploadExpense:
             ]
         return user_id, friends, groups, groups_members
 
-    def choose_personal_expense_group(self) -> int:
+    def choose_personal_expense_group(
+        self, all_groups, all_groups_members, user_id
+    ) -> int:
         """
         If applicable choose a group for personal expense
 
@@ -143,31 +147,26 @@ class UploadExpense:
         if user_input == "":
             personal_expense_group_id: int = None
 
-            while personal_expense_group_id not in self.user_groups.keys():
+            while personal_expense_group_id not in all_groups.keys():
                 print("\n")
-                for index, group in enumerate(self.user_groups.values()):
+                for index, group in enumerate(all_groups.values()):
                     print(f"{index} - {group}")
 
                 try:
                     personal_group_index: int = input(
                         (
-                            "\nHere are your groups. Enter the number "
+                            "Here are your groups. Enter the number "
                             "of the personal expense group - "
                         )
                     )
-                    personal_expense_group_id: int = list(
-                        self.user_groups.keys()
-                    )[int(personal_group_index)]
+                    personal_expense_group_id: int = list(all_groups.keys())[
+                        int(personal_group_index)
+                    ]
 
                     if (
-                        len(
-                            self.user_groups_members[personal_expense_group_id]
-                        )
-                        == 1
-                        and self.user_groups_members[
-                            personal_expense_group_id
-                        ][0]
-                        == self.user_id
+                        len(all_groups_members[personal_expense_group_id]) == 1
+                        and all_groups_members[personal_expense_group_id][0]
+                        == user_id
                     ):
                         return personal_expense_group_id
                     else:
@@ -175,7 +174,7 @@ class UploadExpense:
                         print(
                             (
                                 "\nThe chosen group contains more than one "
-                                "person. Please a different group.\n"
+                                "person. Please a different group."
                             )
                         )
                 except ValueError:
