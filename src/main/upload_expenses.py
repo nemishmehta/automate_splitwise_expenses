@@ -411,14 +411,13 @@ class UploadExpense:
                         )
                     )
                 )
-                if (
-                    len(
-                        list(self.user_groups_members.values())[
-                            chosen_group_index
-                        ]
-                    )
-                    == 1
-                    and user_personal_expense_group_id is None
+
+                if len(
+                    list(self.user_groups_members.values())[chosen_group_index]
+                ) == 1 and (
+                    user_personal_expense_group_id is None
+                    or list(self.user_groups.keys())[chosen_group_index]
+                    != user_personal_expense_group_id
                 ):
                     print(
                         (
