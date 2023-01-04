@@ -577,10 +577,10 @@ class UploadExpense:
         Returns:
             Tuple[str, str]: user 1 and user 2 split
         """
-        user_1_share = str(round(total_expense / 2, 2))
-        user_2_share = str(round(total_expense / 2, 2))
+        user_1_share: float = round(total_expense / 2, 2)
+        user_2_share: float = round(total_expense - user_1_share, 2)
 
-        return user_1_share, user_2_share
+        return str(user_1_share), str(user_2_share)
 
     def split_by_exact_amount(self, total_expense: float) -> Tuple[str, str]:
         """
