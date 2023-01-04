@@ -39,7 +39,9 @@ class UploadExpense:
             self.user_groups_members,
         ) = self.get_user_info()
         user_personal_expense_group_id: int = (
-            self.choose_personal_expense_group()
+            self.choose_personal_expense_group(
+                self.user_groups, self.user_groups_members, self.user_id
+            )
         )
         (
             self.categories,
@@ -126,7 +128,9 @@ class UploadExpense:
             ]
         return user_id, friends, groups, groups_members
 
-    def choose_personal_expense_group(self) -> int:
+    def choose_personal_expense_group(
+        self, all_groups, all_groups_members, user_id
+    ) -> int:
         """
         If applicable choose a group for personal expense
 
@@ -143,9 +147,9 @@ class UploadExpense:
         if user_input == "":
             personal_expense_group_id: int = None
 
-            while personal_expense_group_id not in self.user_groups.keys():
+            while personal_expense_group_id not in all_groups.keys():
                 print("\n")
-                for index, group in enumerate(self.user_groups.values()):
+                for index, group in enumerate(all_groups.values()):
                     print(f"{index} - {group}")
 
                 try:
@@ -155,19 +159,14 @@ class UploadExpense:
                             "of the personal expense group - "
                         )
                     )
-                    personal_expense_group_id: int = list(
-                        self.user_groups.keys()
-                    )[int(personal_group_index)]
+                    personal_expense_group_id: int = list(all_groups.keys())[
+                        int(personal_group_index)
+                    ]
 
                     if (
-                        len(
-                            self.user_groups_members[personal_expense_group_id]
-                        )
-                        == 1
-                        and self.user_groups_members[
-                            personal_expense_group_id
-                        ][0]
-                        == self.user_id
+                        len(all_groups_members[personal_expense_group_id]) == 1
+                        and all_groups_members[personal_expense_group_id][0]
+                        == user_id
                     ):
                         return personal_expense_group_id
                     else:
@@ -175,7 +174,7 @@ class UploadExpense:
                         print(
                             (
                                 "\nThe chosen group contains more than one "
-                                "person. Please a different group.\n"
+                                "person. Please a different group."
                             )
                         )
                 except ValueError:
@@ -252,7 +251,9 @@ class UploadExpense:
         ) = self.choose_sub_category()
 
         group_name, group_id = self.choose_group(
-            user_personal_expense_group_id
+            user_personal_expense_group_id,
+            self.user_groups,
+            self.user_groups_members,
         )
 
         if group_id == user_personal_expense_group_id:
@@ -264,7 +265,12 @@ class UploadExpense:
             }
             return expense_info
         else:
-            friend_name, friend_id = self.choose_friend(group_id)
+            friend_name, friend_id = self.choose_friend(
+                group_id,
+                self.user_groups_members,
+                self.user_id,
+                self.user_friends,
+            )
             chosen_split_type: str = self.choose_split_type()
 
             if chosen_split_type == "=":
@@ -337,53 +343,11 @@ class UploadExpense:
 
         return data
 
-    def choose_friend(self, group_id: int) -> Tuple[str, int]:
-        """
-        Select a friend with whom you want to split the expense
-
-        Args:
-            group_name (str): Name of the chosen group
-        Returns:
-            str: chosen_friend_name
-            int: chosen_friend_id
-        """
-        chosen_friend_id: int = None
-        chosen_friend_name: str = None
-        while chosen_friend_id is None or chosen_friend_name is None:
-            for index, group_member_id in enumerate(
-                self.user_groups_members[group_id]
-            ):
-                if group_member_id == self.user_id:
-                    continue
-                else:
-                    chosen_friend_name = self.user_friends[group_member_id]
-                    print(f"{index} - {chosen_friend_name}")
-
-            try:
-                friend_num_index = int(
-                    input(
-                        (
-                            "\nHere are your friends in this group. Enter the "
-                            "number of the friend with whom you want to "
-                            "split the expense - "
-                        )
-                    )
-                )
-                chosen_friend_id = self.user_groups_members[group_id][
-                    friend_num_index
-                ]
-                chosen_friend_name = self.user_friends[chosen_friend_id]
-
-            except ValueError:
-                print("\nPlease enter a valid number.")
-            except IndexError:
-                print("\nPlease enter a value within the given list.")
-            except KeyError:
-                print("\nPlease enter a value within the given list.")
-        return chosen_friend_name, chosen_friend_id
-
     def choose_group(
-        self, user_personal_expense_group_id: int
+        self,
+        user_personal_expense_group_id: int,
+        all_groups: Dict[int, str],
+        all_groups_members: Dict[str, List[int]],
     ) -> Tuple[str, int]:
         """
         Select the group under which the expense will be stored.
@@ -399,9 +363,10 @@ class UploadExpense:
 
         while chosen_group_id is None:
             print("\n")
-            for index, group in enumerate(self.user_groups.values()):
+            group_index_name_map: Dict[int, str] = dict()
+            for index, group in enumerate(all_groups.values()):
                 print(f"{index} - {group}")
-
+                group_index_name_map[index] = group
             try:
                 chosen_group_index: int = int(
                     input(
@@ -412,34 +377,90 @@ class UploadExpense:
                         )
                     )
                 )
-                if (
-                    len(
-                        list(self.user_groups_members.values())[
+                if chosen_group_index in group_index_name_map.keys():
+                    if len(
+                        list(all_groups_members.values())[chosen_group_index]
+                    ) == 1 and (
+                        user_personal_expense_group_id is None
+                        or list(all_groups.keys())[chosen_group_index]
+                        != user_personal_expense_group_id
+                    ):
+                        print(
+                            (
+                                "\nYou are the only member of this group. "
+                                "Please choose another group."
+                            )
+                        )
+                    else:
+                        chosen_group_name = list(all_groups.values())[
                             chosen_group_index
                         ]
-                    )
-                    == 1
-                    and user_personal_expense_group_id is None
-                ):
-                    print(
-                        (
-                            "\nYou are the only member of this group. "
-                            "Please choose another group."
-                        )
-                    )
+                        chosen_group_id = list(all_groups.keys())[
+                            chosen_group_index
+                        ]
                 else:
-                    chosen_group_name = list(self.user_groups.values())[
-                        chosen_group_index
-                    ]
-                    chosen_group_id = list(self.user_groups.keys())[
-                        chosen_group_index
-                    ]
+                    print("\nPlease enter a value within the given list.")
             except ValueError:
                 print("\nPlease enter a valid number.")
             except IndexError:
                 print("\nPlease enter a value within the given list.")
 
         return chosen_group_name, chosen_group_id
+
+    def choose_friend(
+        self,
+        group_id: int,
+        all_groups_members: Dict[str, List[int]],
+        user_id: int,
+        all_friends: Dict[int, str],
+    ) -> Tuple[str, int]:
+        """
+        Select a friend with whom you want to split the expense
+
+        Args:
+            group_name (str): Name of the chosen group
+        Returns:
+            str: chosen_friend_name
+            int: chosen_friend_id
+        """
+        chosen_friend_id: int = None
+        chosen_friend_name: str = None
+        while chosen_friend_id is None or chosen_friend_name is None:
+            friend_index_name_map: Dict[int, str] = dict()
+            for index, group_member_id in enumerate(
+                all_groups_members[group_id]
+            ):
+                if group_member_id == user_id:
+                    continue
+                else:
+                    friend_name = all_friends[group_member_id]
+                    print(f"{index} - {friend_name}")
+                    friend_index_name_map[index] = friend_name
+
+            try:
+                friend_num_index = int(
+                    input(
+                        (
+                            "\nHere are your friends in this group. Enter the "
+                            "number of the friend with whom you want to "
+                            "split the expense - "
+                        )
+                    )
+                )
+                if friend_num_index in friend_index_name_map.keys():
+                    chosen_friend_id = all_groups_members[group_id][
+                        friend_num_index
+                    ]
+                    chosen_friend_name = all_friends[chosen_friend_id]
+                else:
+                    print("\nPlease enter a value within the given list.")
+            except ValueError:
+                print("\nPlease enter a valid number.")
+            except IndexError:
+                print("\nPlease enter a value within the given list.")
+            except KeyError:
+                print("\nPlease enter a value within the given list.")
+        return chosen_friend_name, chosen_friend_id
 
     def choose_sub_category(self) -> Tuple[str, splitwise.category.Category]:
         """
@@ -458,8 +479,10 @@ class UploadExpense:
 
         while chosen_sub_category not in sub_category_list:
             print("\n")
+            sub_category_index_map: Dict[int, str] = dict()
             for index, sub_category in enumerate(sub_category_list):
                 print(f"{index} - {sub_category}")
+                sub_category_index_map[index] = sub_category
             try:
                 chosen_sub_category_index: int = int(
                     input(
@@ -470,9 +493,12 @@ class UploadExpense:
                         )
                     )
                 )
-                chosen_sub_category = sub_category_list[
-                    chosen_sub_category_index
-                ]
+                if chosen_sub_category_index in sub_category_index_map.keys():
+                    chosen_sub_category = sub_category_list[
+                        chosen_sub_category_index
+                    ]
+                else:
+                    print("\nPlease enter a value within the given list.")
             except ValueError:
                 print("\nPlease enter a valid number.")
             except IndexError:
@@ -551,10 +577,10 @@ class UploadExpense:
         Returns:
             Tuple[str, str]: user 1 and user 2 split
         """
-        user_1_share = str(round(total_expense / 2, 2))
-        user_2_share = str(round(total_expense / 2, 2))
+        user_1_share: float = round(total_expense / 2, 2)
+        user_2_share: float = round(total_expense - user_1_share, 2)
 
-        return user_1_share, user_2_share
+        return str(user_1_share), str(user_2_share)
 
     def split_by_exact_amount(self, total_expense: float) -> Tuple[str, str]:
         """
