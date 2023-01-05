@@ -1,8 +1,9 @@
 import csv
+import os
 from typing import Dict, List, Tuple, Union
 
 import splitwise
-from dotenv import dotenv_values
+from dotenv import load_dotenv
 from splitwise import Splitwise
 from splitwise.expense import Expense, ExpenseUser
 
@@ -10,10 +11,10 @@ from splitwise.expense import Expense, ExpenseUser
 class UploadExpense:
     def __init__(self, file_path: str) -> None:
         self.file_path = file_path
-        self.config = dotenv_values(".env")
-        self.consumer_key: str = self.config["CONSUMER_KEY"]
-        self.consumer_secret: str = self.config["CONSUMER_SECRET"]
-        self.api_key: str = self.config["API_KEY"]
+        load_dotenv()
+        self.consumer_key: str = os.environ["CONSUMER_KEY"]
+        self.consumer_secret: str = os.environ["CONSUMER_SECRET"]
+        self.api_key: str = os.environ["API_KEY"]
         self.splitwise_obj = Splitwise(
             self.consumer_key,
             self.consumer_secret,
@@ -24,7 +25,9 @@ class UploadExpense:
         self.user_groups: Dict[int, str] = dict()
         self.user_groups_members: Dict[str, List[int]] = dict()
         self.categories: Dict[str, int] = dict()
-        self.all_sub_categories: Dict[str, Dict[str, int]] = dict()
+        self.all_sub_categories: Dict[
+            str, Dict[str, splitwise.category.Category]
+        ] = dict()
         self.expenses: List[Dict[str, str]] = list()
 
     def run_pipeline(self) -> None:
@@ -76,7 +79,14 @@ class UploadExpense:
                         str,
                         Union[str, float, splitwise.category.Category, int],
                     ] = self.collect_data(
-                        user_personal_expense_group_id, total_expense
+                        self.user_id,
+                        self.user_friends,
+                        self.user_groups,
+                        self.user_groups_members,
+                        user_personal_expense_group_id,
+                        self.categories,
+                        self.all_sub_categories,
+                        total_expense,
                     )
                     data = self.confirm_data(expense, expense_info)
 
@@ -196,7 +206,9 @@ class UploadExpense:
             sub-categories and their ids for each category.
         """
         categories: Dict[str, int] = dict()
-        all_sub_categories: Dict[str, Dict[str, int]] = dict()
+        all_sub_categories: Dict[
+            str, Dict[str, splitwise.category.Category]
+        ] = dict()
         categories_obj = self.splitwise_obj.getCategories()
 
         for category in categories_obj:
@@ -213,7 +225,6 @@ class UploadExpense:
                 ] = sub_category
 
             all_sub_categories[category_name] = sub_category_for_category
-
         return categories, all_sub_categories
 
     def get_csv_file_contents(self) -> List[Dict[str, str]]:
@@ -231,7 +242,15 @@ class UploadExpense:
         return all_expenses
 
     def collect_data(
-        self, user_personal_expense_group_id: int, total_expense: float
+        self,
+        user_id: int,
+        user_friends: Dict[int, str],
+        user_groups: Dict[int, str],
+        user_groups_members: Dict[str, List[int]],
+        user_personal_expense_group_id: int,
+        all_categories: Dict[str, int],
+        all_sub_categories: Dict[str, Dict[str, splitwise.category.Category]],
+        total_expense: float,
     ) -> Dict[str, Union[str, float, splitwise.category.Category, int]]:
         """
         Method to upload expense on Splitwise.
@@ -245,15 +264,16 @@ class UploadExpense:
                 str, Union[str, float, splitwise.category.Category, int]]:
                 Dictionary containing data to create expense
         """
+        chosen_category: str = self.choose_category(all_categories)
         (
             sub_category_name,
             sub_category_obj,
-        ) = self.choose_sub_category()
+        ) = self.choose_sub_category(all_sub_categories, chosen_category)
 
         group_name, group_id = self.choose_group(
             user_personal_expense_group_id,
-            self.user_groups,
-            self.user_groups_members,
+            user_groups,
+            user_groups_members,
         )
 
         if group_id == user_personal_expense_group_id:
@@ -267,15 +287,15 @@ class UploadExpense:
         else:
             friend_name, friend_id = self.choose_friend(
                 group_id,
-                self.user_groups_members,
-                self.user_id,
-                self.user_friends,
+                user_groups_members,
+                user_id,
+                user_friends,
             )
             chosen_split_type: str = self.choose_split_type()
 
             if chosen_split_type == "=":
                 user_1_share, user_2_share = self.split_equally(total_expense)
-            elif chosen_split_type == "|":
+            elif chosen_split_type == "+":
                 (
                     user_1_share,
                     user_2_share,
@@ -462,7 +482,11 @@ class UploadExpense:
                 print("\nPlease enter a value within the given list.")
         return chosen_friend_name, chosen_friend_id
 
-    def choose_sub_category(self) -> Tuple[str, splitwise.category.Category]:
+    def choose_sub_category(
+        self,
+        all_sub_categories: Dict[str, Dict[str, splitwise.category.Category]],
+        chosen_category: str,
+    ) -> Tuple[str, splitwise.category.Category]:
         """
         Choose relevant sub-category from available and return their id
 
@@ -470,14 +494,12 @@ class UploadExpense:
             Tuple[str, splitwise.category.Category]: sub-category name and
             sub-category object
         """
-        chosen_category: str = self.choose_category()
-        chosen_sub_category: str = ""
-        sub_category_list: List[str] = [
-            sub_category
-            for sub_category in self.all_sub_categories[chosen_category]
-        ]
+        chosen_sub_category_name: str = ""
+        sub_category_list: List[str] = list(
+            all_sub_categories[chosen_category].keys()
+        )
 
-        while chosen_sub_category not in sub_category_list:
+        while chosen_sub_category_name not in sub_category_list:
             print("\n")
             sub_category_index_map: Dict[int, str] = dict()
             for index, sub_category in enumerate(sub_category_list):
@@ -494,38 +516,36 @@ class UploadExpense:
                     )
                 )
                 if chosen_sub_category_index in sub_category_index_map.keys():
-                    chosen_sub_category = sub_category_list[
+                    chosen_sub_category_name = sub_category_list[
                         chosen_sub_category_index
                     ]
                 else:
                     print("\nPlease enter a value within the given list.")
             except ValueError:
                 print("\nPlease enter a valid number.")
-            except IndexError:
-                print("\nPlease enter a value within the given list.")
 
-        chosen_sub_category_obj = self.all_sub_categories[chosen_category][
-            chosen_sub_category
+        chosen_sub_category_obj = all_sub_categories[chosen_category][
+            chosen_sub_category_name
         ]
 
-        return chosen_sub_category, chosen_sub_category_obj
+        return chosen_sub_category_name, chosen_sub_category_obj
 
-    def choose_category(self) -> str:
+    def choose_category(self, all_categories: Dict[str, int]) -> str:
         """
         Choose relevant category from available and return their name
 
         Returns:
             str: category name
         """
-        categories_list: List[str] = [
-            category for category in self.categories.keys()
-        ]
+        categories_list: List[str] = list(all_categories.keys())
         category_name: str = ""
 
         while category_name not in categories_list:
+            category_index_map: Dict[int, str] = dict()
             print("\n")
             for index, category in enumerate(categories_list):
                 print(f"{index} - {category}")
+                category_index_map[index] = category
             try:
                 chosen_category_index: int = int(
                     input(
@@ -535,11 +555,12 @@ class UploadExpense:
                         )
                     )
                 )
-                category_name = categories_list[chosen_category_index]
+                if chosen_category_index in category_index_map.keys():
+                    category_name = categories_list[chosen_category_index]
+                else:
+                    print("\nPlease enter a value within the given list.")
             except ValueError:
                 print("\nPlease enter a valid number.")
-            except IndexError:
-                print("\nPlease enter a value within the given list.")
 
         return category_name
 
@@ -548,21 +569,21 @@ class UploadExpense:
         Choose between splitting equally, by exact amount or percentage.
 
         Returns:
-            str: chosen split type (=, |, %)
+            str: chosen split type (=, +, %)
         """
-        possible_split_types: List[str] = ["=", "|", "%"]
+        possible_split_types: List[str] = ["=", "+", "%"]
         chosen_split_type: str = ""
 
         while chosen_split_type not in possible_split_types:
             chosen_split_type = input(
                 (
                     "\nChoose one of the following options to split the "
-                    "expense: (equally: =, exact amount: |, percentage: %) "
+                    "expense: (equally: =, exact amount: +, percentage: %) "
                     "- "
                 )
             )
             if chosen_split_type not in possible_split_types:
-                print("\nPlease choose between =, | and %")
+                print("\nPlease choose between =, + and %")
 
         return chosen_split_type
 
@@ -719,6 +740,6 @@ class UploadExpense:
         splitwise_expense.addUser(user2)
         nExpense, errors = self.splitwise_obj.createExpense(splitwise_expense)
         if not errors:
-            print("\nExpense successfully added to Splitwise.")
+            print("\nExpense successfully added to Splitwise.\n")
         else:
             print(errors.getErrors())

@@ -1,24 +1,37 @@
-name: 'tests'
+name: "tests"
 on: [push, pull_request]
 
 jobs:
   tests:
     env:
-      POETRY_VERSION: 1.2.0 # set your poetry version here
+      POETRY_VERSION: 1.2.2
+      CONSUMER_KEY: ${{ secrets.CONSUMER_KEY }}
+      CONSUMER_SECRET: ${{ secrets.CONSUMER_SECRET }}
+      API_KEY: ${{ secrets.API_KEY }}
     runs-on: ubuntu-latest
-    strategy:  # drop this if you only want to test for a specific version
+    strategy:
       matrix:
         python-version: ["3.9", "3.10", "3.11"]
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Python ${{ matrix.python-version }} # or your python specific version
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
-          python-version: ${{ matrix.python-version }} # or your python specific version
+          python-version: ${{ matrix.python-version }}
       - name: setup poetry
         run: |
           pip install poetry==${{ env.POETRY_VERSION }} 
           poetry config virtualenvs.create false
           poetry install --no-interaction --no-ansi
-      - name: run precommit hooks
-        run: pre-commit run --all-files
+      - name: isort
+        run: |
+          poetry run isort .
+      - name: black
+        run: |
+          poetry run black .
+      - name: flake8
+        run: |
+          poetry run flake8 .
+      - name: Test with pytest
+        run: |
+          poetry run pytest
