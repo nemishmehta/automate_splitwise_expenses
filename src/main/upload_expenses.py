@@ -739,6 +739,6 @@ class UploadExpense:
         splitwise_expense.addUser(user2)
         nExpense, errors = self.splitwise_obj.createExpense(splitwise_expense)
         if not errors:
-            print("\nExpense successfully added to Splitwise.")
+            print("\nExpense successfully added to Splitwise.\n")
         else:
             print(errors.getErrors())
