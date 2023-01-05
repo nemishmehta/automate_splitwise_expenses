@@ -100,6 +100,7 @@ class UploadExpense:
                     )
             else:
                 continue
+        print("\nAll expenses have been successfully uploaded on Splitwise.")
 
     def get_user_info(
         self,
