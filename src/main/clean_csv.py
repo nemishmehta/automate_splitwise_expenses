@@ -380,3 +380,4 @@ class CleanCsv:
             clean_df.to_csv(
                 f"{full_path}/{file_name}_clean.csv", index=False, sep=";"
             )
+        print("CSV file has been successfully cleaned and saved.")
