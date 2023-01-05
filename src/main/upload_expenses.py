@@ -12,7 +12,6 @@ class UploadExpense:
     def __init__(self, file_path: str) -> None:
         self.file_path = file_path
         load_dotenv()
-        # self.config = dotenv_values(".env")
         self.consumer_key: str = os.environ["CONSUMER_KEY"]
         self.consumer_secret: str = os.environ["CONSUMER_SECRET"]
         self.api_key: str = os.environ["API_KEY"]
