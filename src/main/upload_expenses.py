@@ -1,8 +1,9 @@
 import csv
+import os
 from typing import Dict, List, Tuple, Union
 
 import splitwise
-from dotenv import dotenv_values
+from dotenv import load_dotenv
 from splitwise import Splitwise
 from splitwise.expense import Expense, ExpenseUser
 
@@ -10,10 +11,11 @@ from splitwise.expense import Expense, ExpenseUser
 class UploadExpense:
     def __init__(self, file_path: str) -> None:
         self.file_path = file_path
-        self.config = dotenv_values(".env")
-        self.consumer_key: str = self.config["CONSUMER_KEY"]
-        self.consumer_secret: str = self.config["CONSUMER_SECRET"]
-        self.api_key: str = self.config["API_KEY"]
+        load_dotenv()
+        # self.config = dotenv_values(".env")
+        self.consumer_key: str = os.environ["CONSUMER_KEY"]
+        self.consumer_secret: str = os.environ["CONSUMER_SECRET"]
+        self.api_key: str = os.environ["API_KEY"]
         self.splitwise_obj = Splitwise(
             self.consumer_key,
             self.consumer_secret,
