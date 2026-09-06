@@ -4,14 +4,46 @@
 
 **Blocked by:** 02 (Spliit adapter + who-am-i config), 05 (Shared Expense Group/Participant selection UI) — both already done; this issue only touches wiring around them, not their UI.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] `run_shared_expense_cli.py` runs without any `--group-id` argument; the only positional argument is the CSV path
-- [ ] The existing Group picker (`SharedExpenseCLI`'s `_choose_group`) offers every Group that has a Payer Configuration recorded, and no Group that doesn't
-- [ ] Registering a brand-new Group still requires pasting its id once into `run_configure_who_am_i.py --group-id` (unchanged) — after that one-time step it appears in the picker on every future `run_shared_expense_cli.py` run without repeating the id
-- [ ] If zero Groups have a Payer Configuration yet, the run stops before processing any transactions with a clear message pointing at `run_configure_who_am_i.py`, instead of failing deep inside the CLI
-- [ ] If fetching a specific registered Group from Spliit fails (deleted Group, network error), that one Group is skipped with a warning and the run continues with the remaining Groups, rather than aborting the entire run
-- [ ] Existing per-transaction Group/Participant/Split selection behavior (`SharedExpenseCLI`) is unchanged
+- [x] `run_shared_expense_cli.py` runs without any `--group-id` argument; the only positional argument is the CSV path
+- [x] The existing Group picker (`SharedExpenseCLI`'s `_choose_group`) offers every Group that has a Payer Configuration recorded, and no Group that doesn't
+- [x] Registering a brand-new Group still requires pasting its id once into `run_configure_who_am_i.py --group-id` (unchanged) — after that one-time step it appears in the picker on every future `run_shared_expense_cli.py` run without repeating the id
+- [x] If zero Groups have a Payer Configuration yet, the run stops before processing any transactions with a clear message pointing at `run_configure_who_am_i.py`, instead of failing deep inside the CLI
+- [x] If fetching a specific registered Group from Spliit fails (deleted Group, network error), that one Group is skipped with a warning and the run continues with the remaining Groups, rather than aborting the entire run
+- [x] Existing per-transaction Group/Participant/Split selection behavior (`SharedExpenseCLI`) is unchanged
+
+## Implementation notes (agent)
+
+- `src/spliit/who_am_i.py`: added `WhoAmI.known_group_ids() -> List[str]`,
+  returning the store's own keys — this is the "registry of known Groups"
+  the spec's Amendment describes, no new store introduced.
+- `src/spliit/backend.py`: `SpliitExpenseBackend.__init__` gains an optional
+  `on_group_error: Optional[Callable[[str, Exception], None]]` hook.
+  `list_groups()` now fetches each configured Group id inside a
+  try/except, skipping (and reporting via the hook, if given) any Group
+  whose fetch raises, instead of letting one bad Group abort the whole
+  call. Kept adapter-local per the issue's design decision — no change to
+  `ExpenseBackend` in `src/core/backend.py`.
+- `src/scripts/run_shared_expense_cli.py`: dropped the `--group-id`
+  argument entirely; Group ids now come from
+  `WhoAmI.known_group_ids()`. Removed the now-unreachable missing-payer
+  validation loop (every discovered id has a payer by construction).
+  Wired a warning-printing `on_group_error` callback into the backend.
+  Added two upfront guards before the transaction-review loop: (1) zero
+  known Group ids -> message pointing at `run_configure_who_am_i.py`; (2)
+  known ids exist but `backend.list_groups()` comes back empty (every one
+  failed to fetch) -> a second message, per the issue's "empty-picker
+  guard" design decision. `SharedExpenseCLI` itself is untouched.
+- Tests: `tests/spliit/test_who_am_i.py` (+2: empty/non-empty
+  `known_group_ids`), `tests/spliit/test_backend.py` (+1: one bad Group id
+  is skipped and reported while a good one still comes back), both
+  mocking `SpliitClient`, no real network calls. `run_shared_expense_cli.py`
+  itself has no dedicated test file, matching the existing convention that
+  `src/scripts/*` wiring is exercised only through the components it wires
+  (`WhoAmI`, `SpliitExpenseBackend`, `SharedExpenseCLI`), all of which have
+  their own tests. Full suite: 116 passed. black/isort/flake8 clean on all
+  changed files.
 
 ## Design decisions (resolved pre-implementation, via grilling)
 

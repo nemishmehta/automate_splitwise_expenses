@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Iterable, List, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple
 
 from src.core.backend import ExpenseBackend
 from src.core.models import Category, Expense, Group, Participant
@@ -79,8 +79,13 @@ class SpliitExpenseBackend(ExpenseBackend):
     Amendment for why this isn't a PyPI dependency).
     """
 
-    def __init__(self, group_ids: Iterable[str]) -> None:
+    def __init__(
+        self,
+        group_ids: Iterable[str],
+        on_group_error: Optional[Callable[[str, Exception], None]] = None,
+    ) -> None:
         self._group_ids = list(group_ids)
+        self._on_group_error = on_group_error
 
     def _fetch_group(self, group_id: str) -> Group:
         raw = SpliitClient(group_id=group_id).get_group()
@@ -94,7 +99,14 @@ class SpliitExpenseBackend(ExpenseBackend):
         )
 
     def list_groups(self) -> List[Group]:
-        return [self._fetch_group(group_id) for group_id in self._group_ids]
+        groups = []
+        for group_id in self._group_ids:
+            try:
+                groups.append(self._fetch_group(group_id))
+            except Exception as exc:  # noqa: BLE001 - reported, not swallowed
+                if self._on_group_error is not None:
+                    self._on_group_error(group_id, exc)
+        return groups
 
     def list_participants(self, group_id: str) -> List[Participant]:
         return list(self._fetch_group(group_id).participants)

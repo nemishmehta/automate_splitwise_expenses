@@ -43,3 +43,18 @@ def test_who_am_i_keeps_independent_configurations_per_group(tmp_path):
 
     assert who_am_i.get("g1") == "p1"
     assert who_am_i.get("g2") == "p2"
+
+
+def test_known_group_ids_is_empty_when_nothing_is_configured(tmp_path):
+    who_am_i = WhoAmI(tmp_path / "who_am_i.json")
+
+    assert who_am_i.known_group_ids() == []
+
+
+def test_known_group_ids_returns_every_configured_group(tmp_path):
+    who_am_i = WhoAmI(tmp_path / "who_am_i.json")
+
+    who_am_i.set("g1", "p1")
+    who_am_i.set("g2", "p2")
+
+    assert sorted(who_am_i.known_group_ids()) == ["g1", "g2"]

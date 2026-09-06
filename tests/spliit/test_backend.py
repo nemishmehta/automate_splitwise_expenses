@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from src.core.models import Category, Expense, Group, Participant
@@ -42,6 +43,39 @@ def test_list_groups_fetches_each_configured_group_from_spliit():
             ),
         )
     ]
+
+
+def test_list_groups_skips_a_group_that_fails_to_fetch_and_reports_it():
+    good_group = {
+        "name": "Trip",
+        "participants": [{"id": "p1", "name": "Alice"}],
+    }
+    errors = []
+    with patch("src.spliit.backend.SpliitClient") as MockClient:
+
+        def fake_get_group(self):
+            if self.group_id == "bad":
+                raise RuntimeError("boom")
+            return good_group
+
+        MockClient.side_effect = lambda group_id: SimpleNamespace(
+            get_group=lambda: fake_get_group(
+                SimpleNamespace(group_id=group_id)
+            )
+        )
+        backend = SpliitExpenseBackend(
+            group_ids=["g1", "bad"],
+            on_group_error=lambda group_id, exc: errors.append(
+                (group_id, exc)
+            ),
+        )
+
+        groups = backend.list_groups()
+
+    assert [group.id for group in groups] == ["g1"]
+    assert len(errors) == 1
+    assert errors[0][0] == "bad"
+    assert isinstance(errors[0][1], RuntimeError)
 
 
 def test_list_participants_returns_the_groups_participants():

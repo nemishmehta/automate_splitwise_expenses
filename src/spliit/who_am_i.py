@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 
 class WhoAmI:
@@ -23,6 +23,9 @@ class WhoAmI:
 
     def get(self, group_id: str) -> Optional[str]:
         return self._payer_ids.get(group_id)
+
+    def known_group_ids(self) -> List[str]:
+        return list(self._payer_ids.keys())
 
     def set(self, group_id: str, participant_id: str) -> None:
         self._payer_ids[group_id] = participant_id
