@@ -25,6 +25,9 @@ _Avoid_: Share (ambiguous between the method and one participant's resulting amo
 **Payer**:
 The Participant who fronted the money for an Expense. Always you, since Expenses originate from your own bank transactions.
 
+**Payer Configuration**:
+The one-time-per-Group record of which Participant is the Payer, since Spliit has no login to derive it from. Set once via a dedicated setup step and reused on every later Expense for that Group, never re-asked.
+
 **Default Split Profile**:
 A saved Split (method + shares) keyed by a specific *set* of Participants (a single other person is just the size-1 case), applied automatically to future Shared Expenses involving that same set unless overridden.
 
