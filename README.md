@@ -21,14 +21,14 @@ Uploading expenses on Splitwise is a two-phase process.
 ### Phase 1
 1. In this phase, you will need a csv of all the transactions you would like to upload on Splitwise (can be downloaded from your bank account).
 2. We will first clean this csv file and make it ready for the second phase. To clean the file, run the following command on your terminal.
-    - `poetry run python src/scripts/run_clean_csv.py <path to the csv file>`
+    - `poetry run python -m src.scripts.run_clean_csv <path to the csv file>`
 3. Depending on the contents of the file, you will be asked a series of prompts that will be used to clean the csv file.
 4. Once the file has been cleaned, it will be stored in the following directory `src/data/clean/` with the following name `<file name>_clean.csv`
 
 ### Phase 2
 1. In phase two, we will use the cleaned csv file to upload the expenses on Splitwise. 
 2. To upload the expenses, run the following command on your terminal.
-    - `poetry run python src/scripts/run_upload_expenses.py src/data/clean/<file name>_clean.csv`
+    - `poetry run python -m src.scripts.run_upload_expenses src/data/clean/<file name>_clean.csv`
 3. Just like in phase one, you will be asked a series of prompts that will be used to upload the expense on Splitwise.
 
 #### Note: Currently an expense can only be split between two people.
