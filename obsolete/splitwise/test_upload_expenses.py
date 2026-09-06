@@ -1,6 +1,6 @@
 import pytest
 
-from src.main.upload_expenses import UploadExpense
+from obsolete.splitwise.upload_expenses import UploadExpense
 
 
 @pytest.fixture

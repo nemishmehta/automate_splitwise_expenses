@@ -45,7 +45,7 @@ Review each transaction from the cleaned csv one at a time and submit the ones y
 
 ## Legacy: Splitwise
 
-The original Splitwise flow (`run_upload_expenses`, backed by a `.env` with a Splitwise consumer key/secret/API key - see `.env_template`) still exists in this repo but is superseded by the Spliit flow above and not recommended for new use.
+The original Splitwise flow has been moved to [`obsolete/splitwise`](obsolete/splitwise) - see that folder's README. It's superseded by the Spliit flow above and not recommended for new use.
 
 ## To-Do
 1. Automated verification that a submitted Expense actually reaches Spliit (currently a manual check).

@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from src.main.upload_expenses import UploadExpense
+from obsolete.splitwise.upload_expenses import UploadExpense
 
 if __name__ == "__main__":
 

@@ -5,9 +5,6 @@ jobs:
   tests:
     env:
       POETRY_VERSION: 1.2.2
-      CONSUMER_KEY: ${{ secrets.CONSUMER_KEY }}
-      CONSUMER_SECRET: ${{ secrets.CONSUMER_SECRET }}
-      API_KEY: ${{ secrets.API_KEY }}
     runs-on: ubuntu-latest
     strategy:
       matrix:

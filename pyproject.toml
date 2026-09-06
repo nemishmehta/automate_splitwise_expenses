@@ -27,6 +27,9 @@ pre-commit = "^2.20.0"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.isort]
 profile = "black"
 line_length = 79
