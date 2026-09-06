@@ -128,6 +128,9 @@ ENV/
 
 # Local per-operator Spliit Payer Configuration (issue 02)
 who_am_i.json
+
+# Local per-operator Default Split Profiles (issue 07)
+default_split_profiles.json
 env.bak/
 venv.bak/
 

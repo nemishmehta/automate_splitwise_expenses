@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
+from src.core.default_split_profile import DefaultSplitProfileStore
 from src.core.fake_backend import FakeExpenseBackend
 from src.core.models import Group, Participant, SplitMethod
 from src.main.expense_cli import SharedExpenseCLI
@@ -22,7 +23,9 @@ def _write_csv(tmp_path, rows):
     return path
 
 
-def _make_cli(csv_path, inputs, backend=None, payer_ids=None):
+def _make_cli(
+    csv_path, inputs, backend=None, payer_ids=None, default_split_profiles=None
+):
     printed = []
     fed_inputs = iter(inputs)
     cli = SharedExpenseCLI(
@@ -34,6 +37,7 @@ def _make_cli(csv_path, inputs, backend=None, payer_ids=None):
         print_fn=lambda *args, **kwargs: printed.append(
             " ".join(map(str, args))
         ),
+        default_split_profiles=default_split_profiles,
     )
     return cli, printed
 
@@ -253,6 +257,186 @@ def test_percentage_split_reprompts_when_percentages_do_not_sum_to_100(
         "p3": Decimal("7.50"),
     }
     assert any("must sum to" in line for line in printed)
+
+
+def test_first_use_of_a_participant_set_saves_a_default_split_profile(
+    tmp_path,
+):
+    csv_path = _write_csv(tmp_path, ["30/12/2023;30.00;Dinner;EUR"])
+    profiles = DefaultSplitProfileStore(tmp_path / "profiles.json")
+    cli, _ = _make_cli(
+        csv_path,
+        inputs=["", "1", "1,2", "1", ""],
+        default_split_profiles=profiles,
+    )
+
+    cli.run()
+
+    profile = profiles.get(["p1", "p2", "p3"])
+    assert profile is not None
+    assert profile.method == SplitMethod.EQUAL
+    assert profile.values is None
+
+
+def test_a_saved_default_split_is_prefilled_and_confirmed_with_enter(
+    tmp_path,
+):
+    csv_path = _write_csv(
+        tmp_path,
+        [
+            "30/12/2023;30.00;Dinner;EUR",
+            "29/12/2023;45.00;Groceries;EUR",
+        ],
+    )
+    profiles = DefaultSplitProfileStore(tmp_path / "profiles.json")
+    backend = FakeExpenseBackend(groups=[PERSONAL_GROUP, SHARED_GROUP])
+    # first transaction: review, group 1, both others, Percentage,
+    # 50/25/25, confirm
+    # second transaction: review, group 1, both others (same set, in a
+    # different comma order), accept the pre-filled Default Split, confirm
+    cli, _ = _make_cli(
+        csv_path,
+        inputs=[
+            "",
+            "1",
+            "1,2",
+            "3",
+            "50,25,25",
+            "",
+            "",
+            "1",
+            "2,1",
+            "",
+            "",
+        ],
+        backend=backend,
+        default_split_profiles=profiles,
+    )
+
+    cli.run()
+
+    backend_created = backend.created_expenses
+    assert len(backend_created) == 2
+    second_expense = backend_created[1]
+    assert second_expense.split.method == SplitMethod.PERCENTAGE
+    shares = {
+        share.participant_id: share.owed_amount
+        for share in second_expense.split.shares
+    }
+    assert shares == {
+        "p1": Decimal("22.50"),
+        "p2": Decimal("11.25"),
+        "p3": Decimal("11.25"),
+    }
+
+
+def test_declining_a_prefilled_default_falls_through_and_overrides_it(
+    tmp_path,
+):
+    csv_path = _write_csv(
+        tmp_path,
+        [
+            "30/12/2023;30.00;Dinner;EUR",
+            "29/12/2023;40.00;Groceries;EUR",
+            "28/12/2023;40.00;Taxi;EUR",
+        ],
+    )
+    profiles = DefaultSplitProfileStore(tmp_path / "profiles.json")
+    backend = FakeExpenseBackend(groups=[PERSONAL_GROUP, SHARED_GROUP])
+    # 1st: review, group 1, both others, Equal, confirm
+    # 2nd: review, group 1, both others, decline default, Exact Amount,
+    #      values, confirm
+    # 3rd: review, group 1, both others, accept the (now-updated) default,
+    #      confirm
+    cli, _ = _make_cli(
+        csv_path,
+        inputs=[
+            "",
+            "1",
+            "1,2",
+            "1",
+            "",
+            "",
+            "1",
+            "1,2",
+            "skip",
+            "2",
+            "10,10,20",
+            "",
+            "",
+            "1",
+            "1,2",
+            "",
+            "",
+        ],
+        backend=backend,
+        default_split_profiles=profiles,
+    )
+
+    cli.run()
+
+    backend_created = backend.created_expenses
+    assert len(backend_created) == 3
+    third_expense = backend_created[2]
+    assert third_expense.split.method == SplitMethod.EXACT
+    shares = {
+        share.participant_id: share.owed_amount
+        for share in third_expense.split.shares
+    }
+    assert shares == {
+        "p1": Decimal("10"),
+        "p2": Decimal("10"),
+        "p3": Decimal("20"),
+    }
+
+
+def test_two_different_participant_sets_get_independent_default_splits(
+    tmp_path,
+):
+    csv_path = _write_csv(
+        tmp_path,
+        [
+            "30/12/2023;20.00;Lunch with Alice;EUR",
+            "29/12/2023;30.00;Dinner with everyone;EUR",
+            "28/12/2023;20.00;Coffee with Alice;EUR",
+        ],
+    )
+    profiles = DefaultSplitProfileStore(tmp_path / "profiles.json")
+    backend = FakeExpenseBackend(groups=[PERSONAL_GROUP, SHARED_GROUP])
+    # 1st: {p1, p2} - Equal
+    # 2nd: {p1, p2, p3} - Percentage 50/25/25
+    # 3rd: {p1, p2} again - should offer the Equal default, not Percentage
+    cli, printed = _make_cli(
+        csv_path,
+        inputs=[
+            "",
+            "1",
+            "1",
+            "1",
+            "",
+            "",
+            "1",
+            "1,2",
+            "3",
+            "50,25,25",
+            "",
+            "",
+            "1",
+            "1",
+            "",
+            "",
+        ],
+        backend=backend,
+        default_split_profiles=profiles,
+    )
+
+    cli.run()
+
+    backend_created = backend.created_expenses
+    assert len(backend_created) == 3
+    third_expense = backend_created[2]
+    assert third_expense.split.method == SplitMethod.EQUAL
+    assert any("Default Split found: equal" in line for line in printed)
 
 
 def test_prints_a_summary_with_correct_counts(tmp_path):

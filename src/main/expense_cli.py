@@ -1,10 +1,14 @@
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Callable, List, Mapping
+from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
 from src.core.backend import ExpenseBackend
-from src.core.models import Expense, Group, Participant, Split
+from src.core.default_split_profile import (
+    DefaultSplitProfileStore,
+    SplitProfile,
+)
+from src.core.models import Expense, Group, Participant, Split, SplitMethod
 from src.core.split import (
     compute_equal_split,
     compute_exact_split,
@@ -137,12 +141,14 @@ class SharedExpenseCLI:
         csv_path: Path,
         input_fn: Callable[[str], str] = input,
         print_fn: Callable[..., None] = print,
+        default_split_profiles: Optional[DefaultSplitProfileStore] = None,
     ) -> None:
         self._backend = backend
         self._payer_ids = payer_ids
         self._csv_path = csv_path
         self._input = input_fn
         self._print = print_fn
+        self._default_split_profiles = default_split_profiles
 
     def run(self) -> None:
         transactions = read_transactions_csv(self._csv_path)
@@ -254,6 +260,12 @@ class SharedExpenseCLI:
         total: Decimal,
         payer_id: str,
     ) -> Split:
+        default_split = self._use_default_split(
+            participant_ids, total, payer_id
+        )
+        if default_split is not None:
+            return default_split
+
         self._print("\nChoose a split method:")
         self._print("  1. Equal")
         self._print("  2. Exact Amount")
@@ -261,9 +273,11 @@ class SharedExpenseCLI:
         choice = self._input("Enter a number - ")
 
         if choice == "1":
-            return compute_equal_split(participant_ids, total, payer_id)
+            split = compute_equal_split(participant_ids, total, payer_id)
+            self._record_default_split(participant_ids, split, values=None)
+            return split
         if choice == "2":
-            return self._prompt_split(
+            values, split = self._prompt_split(
                 group,
                 participant_ids,
                 label="an exact amount",
@@ -271,12 +285,60 @@ class SharedExpenseCLI:
                     shares, total, payer_id
                 ),
             )
-        return self._prompt_split(
+            self._record_default_split(participant_ids, split, values)
+            return split
+        values, split = self._prompt_split(
             group,
             participant_ids,
             label="a percentage",
             compute=lambda shares: compute_percentage_split(
                 shares, total, payer_id
+            ),
+        )
+        self._record_default_split(participant_ids, split, values)
+        return split
+
+    def _use_default_split(
+        self, participant_ids: List[str], total: Decimal, payer_id: str
+    ) -> Optional[Split]:
+        if self._default_split_profiles is None:
+            return None
+
+        profile = self._default_split_profiles.get(participant_ids)
+        if profile is None:
+            return None
+
+        self._print(
+            f"\nDefault Split found: {profile.method.value}"
+            + (f" {dict(profile.values)}" if profile.values else "")
+        )
+        choice = self._input(
+            "Press Enter to use this Default Split, or any other key to "
+            "choose a different split - "
+        )
+        if choice != "":
+            return None
+
+        if profile.method == SplitMethod.EQUAL:
+            return compute_equal_split(participant_ids, total, payer_id)
+        if profile.method == SplitMethod.EXACT:
+            return compute_exact_split(profile.values, total, payer_id)
+        return compute_percentage_split(profile.values, total, payer_id)
+
+    def _record_default_split(
+        self,
+        participant_ids: List[str],
+        split: Split,
+        values: Optional[Mapping[str, Decimal]],
+    ) -> None:
+        if self._default_split_profiles is None:
+            return
+
+        self._default_split_profiles.record(
+            participant_ids,
+            SplitProfile(
+                method=split.method,
+                values=dict(values) if values else None,
             ),
         )
 
@@ -286,7 +348,7 @@ class SharedExpenseCLI:
         participant_ids: List[str],
         label: str,
         compute: Callable[[Mapping[str, Decimal]], Split],
-    ) -> Split:
+    ) -> Tuple[Dict[str, Decimal], Split]:
         id_to_name = {
             participant.id: participant.name
             for participant in group.participants
@@ -300,6 +362,6 @@ class SharedExpenseCLI:
             try:
                 values = [Decimal(part.strip()) for part in raw.split(",")]
                 shares = dict(zip(participant_ids, values))
-                return compute(shares)
+                return shares, compute(shares)
             except (InvalidOperation, ValueError) as error:
                 self._print(f"Invalid entry: {error}")
