@@ -5,7 +5,7 @@ repos:
         name: isort
         stages: [commit]
         types: [python]
-        entry: poetry run isort .
+        entry: uv run isort .
         language: system
         pass_filenames: false
         always_run: true
@@ -13,7 +13,7 @@ repos:
         name: black
         stages: [commit]
         types: [python]
-        entry: poetry run black .
+        entry: uv run black .
         language: system
         pass_filenames: false
         always_run: true
@@ -21,7 +21,7 @@ repos:
         name: flake8
         stages: [commit]
         types: [python]
-        entry: poetry run flake8 .
+        entry: uv run flake8 .
         language: system
         pass_filenames: false
         always_run: true
@@ -30,7 +30,7 @@ repos:
         name: pytest
         stages: [commit]
         types: [python]
-        entry: poetry run pytest
+        entry: uv run pytest
         language: system
         pass_filenames: false
         always_run: true
