@@ -28,20 +28,20 @@ Turning a bank export into Expenses recorded in Spliit is a three-phase process.
 
 ### Phase 2: One-time per-Group setup ("who am I")
 
-Spliit has no login, so before submitting any **Shared Expense** (an Expense split across 2+ Participants of a Group), the tool needs to know once which Participant is you:
+Spliit has no login, so before a Group can be used at all, the tool needs to know once which Participant is you:
 - `poetry run python -m src.scripts.run_configure_who_am_i --group-id <GROUP_ID>`
 
-This lists the Group's Participants, asks which one is you, and saves the answer locally (`who_am_i.json`, not committed) so it's never asked again for that Group. Skip this step for a **Personal Expense Group** (a Group containing only yourself) - the tool infers the payer automatically since there's only one Participant to choose from.
+This lists the Group's Participants, asks which one is you, and saves the answer locally (`who_am_i.json`, not committed) so it's never asked again for that Group. Every Group you want to submit Expenses against - Personal or Shared alike - must be registered this way at least once before it appears in Phase 3's Group picker.
 
 ### Phase 3: Submit expenses
 
-Review each transaction from the cleaned csv one at a time and submit the ones you confirm, either as a Personal Expense or a Shared Expense.
+- `poetry run python -m src.scripts.run_expense_cli src/data/clean/<file name>_clean.csv`
 
-- **Personal Expense** (a Group containing only yourself):
-    - `poetry run python -m src.scripts.run_expense_cli --group-id <GROUP_ID> src/data/clean/<file name>_clean.csv`
-- **Shared Expense** (split across a chosen subset of a Group's Participants; repeat `--group-id` to offer a choice of multiple Groups):
-    - `poetry run python -m src.scripts.run_shared_expense_cli --group-id <GROUP_ID> [--group-id <GROUP_ID_2> ...] src/data/clean/<file name>_clean.csv`
-    - For each confirmed transaction, you'll choose a Group, the other Participants sharing the cost, and a split method (Equal, Exact Amount, or Percentage). A previously-used split for the same set of Participants is offered again as a Default Split, so you're not asked to repeat it every time.
+Review each transaction from the cleaned csv one at a time. For each one you confirm, you choose a registered Group; that Group's Participant count then decides the rest automatically:
+- **Personal Expense** (a Group containing only yourself): submits immediately, no further prompts.
+- **Shared Expense** (a Group with 2+ Participants): you choose the other Participants sharing the cost and a split method (Equal, Exact Amount, or Percentage). A previously-used split for the same set of Participants is offered again as a Default Split, so you're not asked to repeat it every time.
+
+A single run can freely mix Personal and Shared Expenses, transaction by transaction.
 
 ## Legacy: Splitwise
 

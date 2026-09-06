@@ -111,124 +111,18 @@ class _RunSummary:
         )
 
 
-class PersonalExpenseCLI:
+class ExpenseCLI:
     """
-    Thin interface layer over the core: reads a cleaned CSV, reviews each
-    transaction with the owner one at a time, and submits confirmed ones as
-    a Personal Expense (a Group containing only the owner) through the
-    given ExpenseBackend. Gathers input and calls the core/backend only -
-    no split/category/expense-construction business logic lives here.
-    """
-
-    def __init__(
-        self,
-        backend: ExpenseBackend,
-        group_id: str,
-        csv_path: Path,
-        input_fn: Callable[[str], str] = input,
-        print_fn: Callable[..., None] = print,
-        category_suggestions: Optional[CategorySuggestionHistory] = None,
-        keyword_rules: Optional[Iterable[KeywordRule]] = None,
-    ) -> None:
-        self._backend = backend
-        self._group_id = group_id
-        self._csv_path = csv_path
-        self._input = input_fn
-        self._print = print_fn
-        self._category_suggestions = category_suggestions
-        self._keyword_rules = keyword_rules or []
-
-    def run(self) -> None:
-        payer_id = self._resolve_payer_id()
-        categories = self._backend.list_categories()
-        transactions = read_transactions_csv(self._csv_path)
-        summary = _RunSummary(total=len(transactions))
-
-        self._print(f"\nThere are {summary.total} transactions to review.")
-
-        for index, transaction in enumerate(transactions, start=1):
-            self._print(f"\nTransaction {index}/{summary.total}")
-            self._print(f"  Date: {transaction.date}")
-            self._print(
-                f"  Amount: {transaction.amount} {transaction.currency}"
-            )
-            self._print(f"  Description: {transaction.description}")
-
-            review_choice = self._input(
-                "\nPress Enter to review this transaction, or any other "
-                "key to skip it - "
-            )
-            if review_choice != "":
-                summary.skipped += 1
-                continue
-
-            category_id = _resolve_category(
-                transaction.description,
-                categories,
-                self._category_suggestions,
-                self._keyword_rules,
-                self._input,
-                self._print,
-            )
-
-            self._print("\nSubmit as a Personal Expense:")
-            self._print(f"  Group: {self._group_id}")
-            self._print(f"  Date: {transaction.date}")
-            self._print(
-                f"  Amount: {transaction.amount} {transaction.currency}"
-            )
-            self._print(f"  Description: {transaction.description}")
-            self._print(
-                f"  Category: {_category_name(categories, category_id)}"
-            )
-            confirm_choice = self._input(
-                "\nPress Enter to submit this Expense, or any other key "
-                "to cancel - "
-            )
-            if confirm_choice != "":
-                summary.skipped += 1
-                continue
-
-            expense = Expense(
-                group_id=self._group_id,
-                description=transaction.description,
-                amount=transaction.amount,
-                currency=transaction.currency,
-                date=transaction.date,
-                payer_id=payer_id,
-                category_id=category_id,
-                split=None,
-            )
-            try:
-                self._backend.create_expense(expense)
-            except Exception as error:
-                self._print(f"Failed to submit Expense: {error}")
-                summary.failed += 1
-            else:
-                self._print("Expense successfully submitted.")
-                summary.submitted += 1
-
-        self._print(f"\n{summary.as_line()}")
-
-    def _resolve_payer_id(self) -> str:
-        participants = self._backend.list_participants(self._group_id)
-        if len(participants) != 1:
-            raise ValueError(
-                f"Group {self._group_id} is not a Personal Expense Group "
-                f"(expected exactly 1 Participant, found "
-                f"{len(participants)})."
-            )
-        return participants[0].id
-
-
-class SharedExpenseCLI:
-    """
-    Thin interface layer over the core for Shared Expenses: reviews each
-    transaction from the cleaned CSV, lets the owner choose a Group (other
-    than a Personal Expense Group), a subset of 2+ of that Group's
-    Participants, and a split method (Equal, Exact Amount, or Percentage),
-    computes the resulting Split, and submits it through the given
-    ExpenseBackend.
+    Thin interface layer over the core covering every Expense type: reads a
+    cleaned CSV, reviews each transaction with the owner one at a time, and
+    lets them choose which registered Group it belongs to. That Group's
+    Participant count alone then decides the rest of the prompts - exactly
+    1 Participant submits a Personal Expense with no participant-selection
+    or Split-method prompts (`split=None`); 2+ Participants runs the Shared
+    Expense flow (choose Participants, choose Split, Default Split Profile
+    pre-fill). A single run can freely mix both. Gathers input and calls
+    the core/backend only - no split/category/expense-construction
+    business logic lives here.
     """
 
     def __init__(
@@ -276,10 +170,17 @@ class SharedExpenseCLI:
 
             group = self._choose_group()
             payer_id = self._payer_ids[group.id]
-            participant_ids = self._choose_participants(group, payer_id)
-            split = self._choose_split(
-                group, participant_ids, transaction.amount, payer_id
-            )
+
+            if len(group.participants) == 1:
+                split = None
+                expense_kind = "Personal Expense"
+            else:
+                participant_ids = self._choose_participants(group, payer_id)
+                split = self._choose_split(
+                    group, participant_ids, transaction.amount, payer_id
+                )
+                expense_kind = "Shared Expense"
+
             category_id = _resolve_category(
                 transaction.description,
                 categories,
@@ -289,7 +190,7 @@ class SharedExpenseCLI:
                 self._print,
             )
 
-            self._print("\nSubmit as a Shared Expense:")
+            self._print(f"\nSubmit as a {expense_kind}:")
             self._print(f"  Group: {group.name}")
             self._print(f"  Date: {transaction.date}")
             self._print(
@@ -299,11 +200,12 @@ class SharedExpenseCLI:
             self._print(
                 f"  Category: {_category_name(categories, category_id)}"
             )
-            for share in split.shares:
-                self._print(
-                    f"  Share: {share.participant_id} owes "
-                    f"{share.owed_amount}"
-                )
+            if split is not None:
+                for share in split.shares:
+                    self._print(
+                        f"  Share: {share.participant_id} owes "
+                        f"{share.owed_amount}"
+                    )
             confirm_choice = self._input(
                 "\nPress Enter to submit this Expense, or any other key "
                 "to cancel - "
@@ -333,16 +235,16 @@ class SharedExpenseCLI:
 
         self._print(f"\n{summary.as_line()}")
 
-    def _shared_groups(self) -> List[Group]:
+    def _registered_groups(self) -> List[Group]:
         return [
             group
             for group in self._backend.list_groups()
-            if len(group.participants) >= 2
+            if group.id in self._payer_ids
         ]
 
     def _choose_group(self) -> Group:
-        groups = self._shared_groups()
-        self._print("\nChoose a Group for this Shared Expense:")
+        groups = self._registered_groups()
+        self._print("\nChoose a Group for this Expense:")
         for position, group in enumerate(groups, start=1):
             self._print(f"  {position}. {group.name}")
         choice = self._input("Enter a number - ")
