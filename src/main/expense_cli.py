@@ -1,20 +1,100 @@
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Callable, Dict, List, Mapping, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Mapping, Optional, Tuple
 
 from src.core.backend import ExpenseBackend
+from src.core.category_suggestion import (
+    CategorySuggestionHistory,
+    KeywordRule,
+    suggest_category,
+)
 from src.core.default_split_profile import (
     DefaultSplitProfileStore,
     SplitProfile,
 )
-from src.core.models import Expense, Group, Participant, Split, SplitMethod
+from src.core.models import (
+    Category,
+    Expense,
+    Group,
+    Participant,
+    Split,
+    SplitMethod,
+)
 from src.core.split import (
     compute_equal_split,
     compute_exact_split,
     compute_percentage_split,
 )
 from src.core.transactions import read_transactions_csv
+
+
+def _resolve_category(
+    description: str,
+    categories: List[Category],
+    category_suggestions: Optional[CategorySuggestionHistory],
+    keyword_rules: Iterable[KeywordRule],
+    input_fn: Callable[[str], str],
+    print_fn: Callable[..., None],
+) -> Optional[str]:
+    """
+    Resolve the Category for an Expense: pre-fill and offer one-keypress
+    confirmation for a suggestion from `suggest_category`, falling through
+    to a manual choice (recorded as an override) when declined or when no
+    suggestion exists. Skipped entirely when there's nothing to choose
+    from (no suggestion and no Categories at all).
+    """
+    suggested_id = None
+    if category_suggestions is not None:
+        suggested_id = suggest_category(
+            description, category_suggestions, keyword_rules
+        )
+
+    if suggested_id is not None:
+        print_fn(
+            f"\nSuggested Category: "
+            f"{_category_name(categories, suggested_id)}"
+        )
+        choice = input_fn(
+            "Press Enter to accept this Category, or any other key to "
+            "choose a different one - "
+        )
+        if choice == "":
+            return suggested_id
+
+    if not categories:
+        return None
+
+    category_id = _prompt_category_choice(categories, input_fn, print_fn)
+    if category_id is not None and category_suggestions is not None:
+        category_suggestions.record(description, category_id)
+    return category_id
+
+
+def _prompt_category_choice(
+    categories: List[Category],
+    input_fn: Callable[[str], str],
+    print_fn: Callable[..., None],
+) -> Optional[str]:
+    print_fn("\nChoose a Category:")
+    print_fn("  0. None")
+    for position, category in enumerate(categories, start=1):
+        print_fn(f"  {position}. {category.name}")
+    choice = input_fn("Enter a number - ")
+    if choice in ("", "0"):
+        return None
+    return categories[int(choice) - 1].id
+
+
+def _category_name(
+    categories: List[Category], category_id: Optional[str]
+) -> str:
+    if category_id is None:
+        return "None"
+    for category in categories:
+        if category.id == category_id:
+            return category.name
+    return category_id
 
 
 @dataclass
@@ -47,15 +127,20 @@ class PersonalExpenseCLI:
         csv_path: Path,
         input_fn: Callable[[str], str] = input,
         print_fn: Callable[..., None] = print,
+        category_suggestions: Optional[CategorySuggestionHistory] = None,
+        keyword_rules: Optional[Iterable[KeywordRule]] = None,
     ) -> None:
         self._backend = backend
         self._group_id = group_id
         self._csv_path = csv_path
         self._input = input_fn
         self._print = print_fn
+        self._category_suggestions = category_suggestions
+        self._keyword_rules = keyword_rules or []
 
     def run(self) -> None:
         payer_id = self._resolve_payer_id()
+        categories = self._backend.list_categories()
         transactions = read_transactions_csv(self._csv_path)
         summary = _RunSummary(total=len(transactions))
 
@@ -77,6 +162,15 @@ class PersonalExpenseCLI:
                 summary.skipped += 1
                 continue
 
+            category_id = _resolve_category(
+                transaction.description,
+                categories,
+                self._category_suggestions,
+                self._keyword_rules,
+                self._input,
+                self._print,
+            )
+
             self._print("\nSubmit as a Personal Expense:")
             self._print(f"  Group: {self._group_id}")
             self._print(f"  Date: {transaction.date}")
@@ -84,6 +178,9 @@ class PersonalExpenseCLI:
                 f"  Amount: {transaction.amount} {transaction.currency}"
             )
             self._print(f"  Description: {transaction.description}")
+            self._print(
+                f"  Category: {_category_name(categories, category_id)}"
+            )
             confirm_choice = self._input(
                 "\nPress Enter to submit this Expense, or any other key "
                 "to cancel - "
@@ -99,7 +196,7 @@ class PersonalExpenseCLI:
                 currency=transaction.currency,
                 date=transaction.date,
                 payer_id=payer_id,
-                category_id=None,
+                category_id=category_id,
                 split=None,
             )
             try:
@@ -142,6 +239,8 @@ class SharedExpenseCLI:
         input_fn: Callable[[str], str] = input,
         print_fn: Callable[..., None] = print,
         default_split_profiles: Optional[DefaultSplitProfileStore] = None,
+        category_suggestions: Optional[CategorySuggestionHistory] = None,
+        keyword_rules: Optional[Iterable[KeywordRule]] = None,
     ) -> None:
         self._backend = backend
         self._payer_ids = payer_ids
@@ -149,8 +248,11 @@ class SharedExpenseCLI:
         self._input = input_fn
         self._print = print_fn
         self._default_split_profiles = default_split_profiles
+        self._category_suggestions = category_suggestions
+        self._keyword_rules = keyword_rules or []
 
     def run(self) -> None:
+        categories = self._backend.list_categories()
         transactions = read_transactions_csv(self._csv_path)
         summary = _RunSummary(total=len(transactions))
 
@@ -178,6 +280,14 @@ class SharedExpenseCLI:
             split = self._choose_split(
                 group, participant_ids, transaction.amount, payer_id
             )
+            category_id = _resolve_category(
+                transaction.description,
+                categories,
+                self._category_suggestions,
+                self._keyword_rules,
+                self._input,
+                self._print,
+            )
 
             self._print("\nSubmit as a Shared Expense:")
             self._print(f"  Group: {group.name}")
@@ -186,6 +296,9 @@ class SharedExpenseCLI:
                 f"  Amount: {transaction.amount} {transaction.currency}"
             )
             self._print(f"  Description: {transaction.description}")
+            self._print(
+                f"  Category: {_category_name(categories, category_id)}"
+            )
             for share in split.shares:
                 self._print(
                     f"  Share: {share.participant_id} owes "
@@ -206,7 +319,7 @@ class SharedExpenseCLI:
                 currency=transaction.currency,
                 date=transaction.date,
                 payer_id=payer_id,
-                category_id=None,
+                category_id=category_id,
                 split=split,
             )
             try:

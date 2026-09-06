@@ -131,6 +131,10 @@ who_am_i.json
 
 # Local per-operator Default Split Profiles (issue 07)
 default_split_profiles.json
+
+# Local per-operator Category Suggestion history and keyword rules (issue 04)
+category_suggestion_history.json
+category_keyword_rules.json
 env.bak/
 venv.bak/
 

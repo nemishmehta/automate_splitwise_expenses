@@ -1,9 +1,10 @@
 from datetime import date
 from decimal import Decimal
 
+from src.core.category_suggestion import CategorySuggestionHistory
 from src.core.default_split_profile import DefaultSplitProfileStore
 from src.core.fake_backend import FakeExpenseBackend
-from src.core.models import Group, Participant, SplitMethod
+from src.core.models import Category, Group, Participant, SplitMethod
 from src.main.expense_cli import SharedExpenseCLI
 
 PAYER = Participant(id="p1", name="Nemish")
@@ -13,6 +14,7 @@ PERSONAL_GROUP = Group(id="g1", name="Personal", participants=(PAYER,))
 SHARED_GROUP = Group(
     id="g2", name="Trip", participants=(PAYER, FRIEND_A, FRIEND_B)
 )
+FOOD = Category(id="cat-food", name="Food and drink")
 
 
 def _write_csv(tmp_path, rows):
@@ -24,7 +26,12 @@ def _write_csv(tmp_path, rows):
 
 
 def _make_cli(
-    csv_path, inputs, backend=None, payer_ids=None, default_split_profiles=None
+    csv_path,
+    inputs,
+    backend=None,
+    payer_ids=None,
+    default_split_profiles=None,
+    category_suggestions=None,
 ):
     printed = []
     fed_inputs = iter(inputs)
@@ -38,6 +45,7 @@ def _make_cli(
             " ".join(map(str, args))
         ),
         default_split_profiles=default_split_profiles,
+        category_suggestions=category_suggestions,
     )
     return cli, printed
 
@@ -147,6 +155,30 @@ def test_prints_an_error_message_when_the_backend_raises(tmp_path):
     cli.run()
 
     assert any("boom" in line for line in printed)
+
+
+def test_a_suggested_category_is_prefilled_and_confirmed_with_enter(
+    tmp_path,
+):
+    csv_path = _write_csv(tmp_path, ["30/12/2023;30.00;Dinner;EUR"])
+    history = CategorySuggestionHistory(tmp_path / "history.json")
+    history.record("Dinner", FOOD.id)
+    backend = FakeExpenseBackend(
+        groups=[PERSONAL_GROUP, SHARED_GROUP], categories=[FOOD]
+    )
+    # review, group 1, both others, Equal, accept suggested Category,
+    # confirm
+    cli, _ = _make_cli(
+        csv_path,
+        inputs=["", "1", "1,2", "1", "", ""],
+        backend=backend,
+        category_suggestions=history,
+    )
+
+    cli.run()
+
+    expense = backend.created_expenses[0]
+    assert expense.category_id == FOOD.id
 
 
 def test_submits_shared_expense_with_exact_amount_split(tmp_path):

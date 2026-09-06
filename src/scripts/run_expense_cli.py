@@ -1,8 +1,19 @@
 import argparse
 from pathlib import Path
 
+from src.core.category_suggestion import (
+    CategorySuggestionHistory,
+    load_keyword_rules,
+)
 from src.main.expense_cli import PersonalExpenseCLI
 from src.spliit.backend import SpliitExpenseBackend
+
+CATEGORY_HISTORY_PATH = (
+    Path(__file__).resolve().parents[2] / "category_suggestion_history.json"
+)
+KEYWORD_RULES_PATH = (
+    Path(__file__).resolve().parents[2] / "category_keyword_rules.json"
+)
 
 if __name__ == "__main__":
 
@@ -29,5 +40,9 @@ if __name__ == "__main__":
             backend=backend,
             group_id=args.group_id,
             csv_path=args.csv_path,
+            category_suggestions=CategorySuggestionHistory(
+                CATEGORY_HISTORY_PATH
+            ),
+            keyword_rules=load_keyword_rules(KEYWORD_RULES_PATH),
         )
         cli.run()

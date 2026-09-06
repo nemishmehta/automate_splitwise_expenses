@@ -1,6 +1,7 @@
 from src.core.category_suggestion import (
     CategorySuggestionHistory,
     KeywordRule,
+    load_keyword_rules,
     suggest_category,
 )
 
@@ -94,6 +95,27 @@ def test_recording_a_new_choice_overrides_the_previous_one(tmp_path):
     history.record("Trader Joe's", "cat-household")
 
     assert history.get("Trader Joe's") == "cat-household"
+
+
+def test_load_keyword_rules_returns_empty_list_when_file_is_missing(
+    tmp_path,
+):
+    assert load_keyword_rules(tmp_path / "missing.json") == []
+
+
+def test_load_keyword_rules_reads_entries_from_a_json_file(tmp_path):
+    path = tmp_path / "keyword_rules.json"
+    path.write_text(
+        '[{"keyword": "uber", "category_id": "cat-transport"}, '
+        '{"keyword": "trader joe", "category_id": "cat-groceries"}]'
+    )
+
+    rules = load_keyword_rules(path)
+
+    assert rules == [
+        KeywordRule(keyword="uber", category_id="cat-transport"),
+        KeywordRule(keyword="trader joe", category_id="cat-groceries"),
+    ]
 
 
 def test_suggest_accepts_a_category_suggestion_history_directly(tmp_path):

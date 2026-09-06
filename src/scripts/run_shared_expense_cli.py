@@ -1,6 +1,10 @@
 import argparse
 from pathlib import Path
 
+from src.core.category_suggestion import (
+    CategorySuggestionHistory,
+    load_keyword_rules,
+)
 from src.core.default_split_profile import DefaultSplitProfileStore
 from src.main.expense_cli import SharedExpenseCLI
 from src.spliit.backend import SpliitExpenseBackend
@@ -9,6 +13,12 @@ from src.spliit.who_am_i import WhoAmI
 WHO_AM_I_PATH = Path(__file__).resolve().parents[2] / "who_am_i.json"
 DEFAULT_SPLIT_PROFILES_PATH = (
     Path(__file__).resolve().parents[2] / "default_split_profiles.json"
+)
+CATEGORY_HISTORY_PATH = (
+    Path(__file__).resolve().parents[2] / "category_suggestion_history.json"
+)
+KEYWORD_RULES_PATH = (
+    Path(__file__).resolve().parents[2] / "category_keyword_rules.json"
 )
 
 if __name__ == "__main__":
@@ -61,5 +71,9 @@ if __name__ == "__main__":
                     payer_ids=payer_ids,
                     csv_path=args.csv_path,
                     default_split_profiles=default_split_profiles,
+                    category_suggestions=CategorySuggestionHistory(
+                        CATEGORY_HISTORY_PATH
+                    ),
+                    keyword_rules=load_keyword_rules(KEYWORD_RULES_PATH),
                 )
                 cli.run()

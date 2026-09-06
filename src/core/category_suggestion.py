@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 
 @dataclass(frozen=True)
@@ -38,6 +38,21 @@ class CategorySuggestionHistory:
     def record(self, description: str, category_id: str) -> None:
         self._choices[description] = category_id
         self._path.write_text(json.dumps(self._choices))
+
+
+def load_keyword_rules(path: Path) -> List[KeywordRule]:
+    """
+    Load the owner's user-defined keyword rules from a JSON file of
+    `{"keyword": ..., "category_id": ...}` entries. Returns an empty list
+    when the file doesn't exist yet - this is user-authored configuration,
+    not something the tool writes itself.
+    """
+    if not path.exists():
+        return []
+    return [
+        KeywordRule(keyword=entry["keyword"], category_id=entry["category_id"])
+        for entry in json.loads(path.read_text())
+    ]
 
 
 def suggest_category(
