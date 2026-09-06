@@ -1,34 +1,34 @@
-[tool.poetry]
+[project]
 name = "automate_splitwise_expenses"
 version = "0.1.0"
 description = "Automate uploading expenses on Splitwise."
-authors = ["Nemish Mehta <23.nemishmehta@gmail.com>"]
+authors = [{name = "Nemish Mehta", email = "23.nemishmehta@gmail.com"}]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "src"}]
+requires-python = ">=3.9,<4.0"
+dependencies = [
+    "splitwise>=2.5.0,<3.0.0",
+    "python-dotenv>=0.21.0,<0.22.0",
+    "pandas>=1.5.2,<2.0.0",
+    "pytest-cov>=4.0.0,<5.0.0",
+    "requests>=2.28.1,<3.0.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.9"
-splitwise = "^2.5.0"
-python-dotenv = "^0.21.0"
-pandas = "^1.5.2"
-pytest-cov = "^4.0.0"
-requests = "^2.28.1"
+[dependency-groups]
+dev = [
+    "black>=22.10.0,<23.0.0",
+    "flake8>=6.0.0,<7.0.0",
+    "isort>=5.10.1,<6.0.0",
+    "pytest>=7.2.0,<8.0.0",
+    "pre-commit>=2.20.0,<3.0.0",
+]
 
-
-[tool.poetry.group.dev.dependencies]
-black = "^22.10.0"
-flake8 = "^6.0.0"
-isort = "^5.10.1"
-pytest = "^7.2.0"
-pre-commit = "^2.20.0"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.isort]
 profile = "black"
