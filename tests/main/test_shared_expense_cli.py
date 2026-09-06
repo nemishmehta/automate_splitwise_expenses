@@ -43,8 +43,11 @@ def test_submits_confirmed_transaction_as_shared_expense_with_equal_split(
 ):
     csv_path = _write_csv(tmp_path, ["30/12/2023;30.00;Dinner;EUR"])
     backend = FakeExpenseBackend(groups=[PERSONAL_GROUP, SHARED_GROUP])
-    # review, choose group 1 (Trip), choose both other participants, confirm
-    cli, _ = _make_cli(csv_path, inputs=["", "1", "1,2", ""], backend=backend)
+    # review, choose group 1 (Trip), choose both other participants,
+    # choose split method 1 (Equal), confirm
+    cli, _ = _make_cli(
+        csv_path, inputs=["", "1", "1,2", "1", ""], backend=backend
+    )
 
     cli.run()
 
@@ -69,8 +72,11 @@ def test_submits_confirmed_transaction_as_shared_expense_with_equal_split(
 def test_equal_split_works_for_exactly_two_participants(tmp_path):
     csv_path = _write_csv(tmp_path, ["30/12/2023;20.00;Lunch;EUR"])
     backend = FakeExpenseBackend(groups=[PERSONAL_GROUP, SHARED_GROUP])
-    # review, choose group 1 (Trip), choose only participant 1 (Alice), confirm
-    cli, _ = _make_cli(csv_path, inputs=["", "1", "1", ""], backend=backend)
+    # review, choose group 1 (Trip), choose only participant 1 (Alice),
+    # choose split method 1 (Equal), confirm
+    cli, _ = _make_cli(
+        csv_path, inputs=["", "1", "1", "1", ""], backend=backend
+    )
 
     cli.run()
 
@@ -87,7 +93,7 @@ def test_only_shared_groups_are_offered_as_choices(tmp_path):
     csv_path = _write_csv(tmp_path, ["30/12/2023;20.00;Lunch;EUR"])
     backend = FakeExpenseBackend(groups=[PERSONAL_GROUP, SHARED_GROUP])
     cli, printed = _make_cli(
-        csv_path, inputs=["", "1", "1,2", ""], backend=backend
+        csv_path, inputs=["", "1", "1,2", "1", ""], backend=backend
     )
 
     cli.run()
@@ -113,7 +119,7 @@ def test_cancelling_at_confirmation_does_not_submit_the_expense(tmp_path):
     csv_path = _write_csv(tmp_path, ["30/12/2023;20.00;Lunch;EUR"])
     backend = FakeExpenseBackend(groups=[PERSONAL_GROUP, SHARED_GROUP])
     cli, _ = _make_cli(
-        csv_path, inputs=["", "1", "1,2", "cancel"], backend=backend
+        csv_path, inputs=["", "1", "1,2", "1", "cancel"], backend=backend
     )
 
     cli.run()
@@ -130,13 +136,123 @@ def test_prints_an_error_message_when_the_backend_raises(tmp_path):
 
     cli, printed = _make_cli(
         csv_path,
-        inputs=["", "1", "1,2", ""],
+        inputs=["", "1", "1,2", "1", ""],
         backend=FailingBackend(groups=[PERSONAL_GROUP, SHARED_GROUP]),
     )
 
     cli.run()
 
     assert any("boom" in line for line in printed)
+
+
+def test_submits_shared_expense_with_exact_amount_split(tmp_path):
+    csv_path = _write_csv(tmp_path, ["30/12/2023;30.00;Dinner;EUR"])
+    backend = FakeExpenseBackend(groups=[PERSONAL_GROUP, SHARED_GROUP])
+    # review, choose group 1 (Trip), choose both other participants,
+    # choose split method 2 (Exact Amount), enter amounts for p1,p2,p3,
+    # confirm
+    cli, _ = _make_cli(
+        csv_path,
+        inputs=["", "1", "1,2", "2", "5,10,15", ""],
+        backend=backend,
+    )
+
+    cli.run()
+
+    expense = backend.created_expenses[0]
+    assert expense.split.method == SplitMethod.EXACT
+    shares = {
+        share.participant_id: share.owed_amount
+        for share in expense.split.shares
+    }
+    assert shares == {
+        "p1": Decimal("5"),
+        "p2": Decimal("10"),
+        "p3": Decimal("15"),
+    }
+
+
+def test_exact_amount_split_reprompts_when_amounts_do_not_sum_to_total(
+    tmp_path,
+):
+    csv_path = _write_csv(tmp_path, ["30/12/2023;30.00;Dinner;EUR"])
+    backend = FakeExpenseBackend(groups=[PERSONAL_GROUP, SHARED_GROUP])
+    cli, printed = _make_cli(
+        csv_path,
+        # first attempt sums to 25, not 30 - should be rejected and
+        # re-prompted before the valid second attempt is accepted
+        inputs=["", "1", "1,2", "2", "5,10,10", "5,10,15", ""],
+        backend=backend,
+    )
+
+    cli.run()
+
+    assert len(backend.created_expenses) == 1
+    shares = {
+        share.participant_id: share.owed_amount
+        for share in backend.created_expenses[0].split.shares
+    }
+    assert shares == {
+        "p1": Decimal("5"),
+        "p2": Decimal("10"),
+        "p3": Decimal("15"),
+    }
+    assert any("must sum to" in line for line in printed)
+
+
+def test_submits_shared_expense_with_percentage_split(tmp_path):
+    csv_path = _write_csv(tmp_path, ["30/12/2023;30.00;Dinner;EUR"])
+    backend = FakeExpenseBackend(groups=[PERSONAL_GROUP, SHARED_GROUP])
+    # review, choose group 1 (Trip), choose both other participants,
+    # choose split method 3 (Percentage), enter percentages for p1,p2,p3,
+    # confirm
+    cli, _ = _make_cli(
+        csv_path,
+        inputs=["", "1", "1,2", "3", "50,25,25", ""],
+        backend=backend,
+    )
+
+    cli.run()
+
+    expense = backend.created_expenses[0]
+    assert expense.split.method == SplitMethod.PERCENTAGE
+    shares = {
+        share.participant_id: share.owed_amount
+        for share in expense.split.shares
+    }
+    assert shares == {
+        "p1": Decimal("15.00"),
+        "p2": Decimal("7.50"),
+        "p3": Decimal("7.50"),
+    }
+
+
+def test_percentage_split_reprompts_when_percentages_do_not_sum_to_100(
+    tmp_path,
+):
+    csv_path = _write_csv(tmp_path, ["30/12/2023;30.00;Dinner;EUR"])
+    backend = FakeExpenseBackend(groups=[PERSONAL_GROUP, SHARED_GROUP])
+    cli, printed = _make_cli(
+        csv_path,
+        # first attempt sums to 90, not 100 - should be rejected and
+        # re-prompted before the valid second attempt is accepted
+        inputs=["", "1", "1,2", "3", "50,25,15", "50,25,25", ""],
+        backend=backend,
+    )
+
+    cli.run()
+
+    assert len(backend.created_expenses) == 1
+    shares = {
+        share.participant_id: share.owed_amount
+        for share in backend.created_expenses[0].split.shares
+    }
+    assert shares == {
+        "p1": Decimal("15.00"),
+        "p2": Decimal("7.50"),
+        "p3": Decimal("7.50"),
+    }
+    assert any("must sum to" in line for line in printed)
 
 
 def test_prints_a_summary_with_correct_counts(tmp_path):
@@ -148,7 +264,7 @@ def test_prints_a_summary_with_correct_counts(tmp_path):
         ],
     )
     cli, printed = _make_cli(
-        csv_path, inputs=["", "1", "1,2", "", "skip"]
+        csv_path, inputs=["", "1", "1,2", "1", "", "skip"]
     )
 
     cli.run()

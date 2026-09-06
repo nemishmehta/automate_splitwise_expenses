@@ -1,10 +1,15 @@
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Callable, List, Mapping
 
 from src.core.backend import ExpenseBackend
-from src.core.models import Expense, Group, Participant
-from src.core.split import compute_equal_split
+from src.core.models import Expense, Group, Participant, Split
+from src.core.split import (
+    compute_equal_split,
+    compute_exact_split,
+    compute_percentage_split,
+)
 from src.core.transactions import read_transactions_csv
 
 
@@ -119,9 +124,10 @@ class SharedExpenseCLI:
     """
     Thin interface layer over the core for Shared Expenses: reviews each
     transaction from the cleaned CSV, lets the owner choose a Group (other
-    than a Personal Expense Group) and a subset of 2+ of that Group's
-    Participants, computes an Equal split across the chosen set, and
-    submits the result through the given ExpenseBackend.
+    than a Personal Expense Group), a subset of 2+ of that Group's
+    Participants, and a split method (Equal, Exact Amount, or Percentage),
+    computes the resulting Split, and submits it through the given
+    ExpenseBackend.
     """
 
     def __init__(
@@ -163,8 +169,8 @@ class SharedExpenseCLI:
             group = self._choose_group()
             payer_id = self._payer_ids[group.id]
             participant_ids = self._choose_participants(group, payer_id)
-            split = compute_equal_split(
-                participant_ids, transaction.amount, payer_id
+            split = self._choose_split(
+                group, participant_ids, transaction.amount, payer_id
             )
 
             self._print("\nSubmit as a Shared Expense:")
@@ -223,9 +229,7 @@ class SharedExpenseCLI:
         choice = self._input("Enter a number - ")
         return groups[int(choice) - 1]
 
-    def _choose_participants(
-        self, group: Group, payer_id: str
-    ) -> List[str]:
+    def _choose_participants(self, group: Group, payer_id: str) -> List[str]:
         others: List[Participant] = [
             participant
             for participant in group.participants
@@ -242,3 +246,60 @@ class SharedExpenseCLI:
             others[position - 1].id for position in chosen_positions
         ]
         return [payer_id] + chosen_other_ids
+
+    def _choose_split(
+        self,
+        group: Group,
+        participant_ids: List[str],
+        total: Decimal,
+        payer_id: str,
+    ) -> Split:
+        self._print("\nChoose a split method:")
+        self._print("  1. Equal")
+        self._print("  2. Exact Amount")
+        self._print("  3. Percentage")
+        choice = self._input("Enter a number - ")
+
+        if choice == "1":
+            return compute_equal_split(participant_ids, total, payer_id)
+        if choice == "2":
+            return self._prompt_split(
+                group,
+                participant_ids,
+                label="an exact amount",
+                compute=lambda shares: compute_exact_split(
+                    shares, total, payer_id
+                ),
+            )
+        return self._prompt_split(
+            group,
+            participant_ids,
+            label="a percentage",
+            compute=lambda shares: compute_percentage_split(
+                shares, total, payer_id
+            ),
+        )
+
+    def _prompt_split(
+        self,
+        group: Group,
+        participant_ids: List[str],
+        label: str,
+        compute: Callable[[Mapping[str, Decimal]], Split],
+    ) -> Split:
+        id_to_name = {
+            participant.id: participant.name
+            for participant in group.participants
+        }
+        self._print(f"\nEnter {label} for each Participant:")
+        for participant_id in participant_ids:
+            self._print(f"  {id_to_name[participant_id]}")
+
+        while True:
+            raw = self._input("Enter comma-separated values, in that order - ")
+            try:
+                values = [Decimal(part.strip()) for part in raw.split(",")]
+                shares = dict(zip(participant_ids, values))
+                return compute(shares)
+            except (InvalidOperation, ValueError) as error:
+                self._print(f"Invalid entry: {error}")

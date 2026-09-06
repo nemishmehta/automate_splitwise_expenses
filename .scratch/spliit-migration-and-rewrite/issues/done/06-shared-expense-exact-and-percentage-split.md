@@ -4,11 +4,11 @@
 
 **Blocked by:** 05 (Shared Expense — Equal split across N Participants)
 
-**Status:** in-progress (core split computation + validation done; CLI selection deferred, same as 05)
+**Status:** complete
 
-- [ ] Owner can choose Exact Amount as the split method and enter an amount for each non-Payer Participant
+- [x] Owner can choose Exact Amount as the split method and enter an amount for each non-Payer Participant
 - [x] An Exact Amount split is rejected, with a re-prompt, if entered shares don't sum to the Expense total (within a small rounding tolerance)
-- [ ] Owner can choose Percentage as the split method and enter a percentage for each non-Payer Participant
+- [x] Owner can choose Percentage as the split method and enter a percentage for each non-Payer Participant
 - [x] A Percentage split is rejected, with a re-prompt, if entered percentages don't sum to 100% (within a small rounding tolerance)
 - [x] Both methods work for exactly 2 Participants and for 3 or more Participants
 
@@ -58,3 +58,41 @@
   on issue 05. Once that CLI exists, wire `compute_exact_split` and
   `compute_percentage_split` in alongside `compute_equal_split` as the
   other two split-method options and check off the remaining boxes.
+
+## CLI wiring (agent, follow-up session)
+
+Issue 05's Shared Expense CLI flow (`SharedExpenseCLI` in
+`src/main/expense_cli.py`) landed after the note above was written, and is
+fully testable against `FakeExpenseBackend` with no real Spliit group
+needed — the "needs a real-Spliit HITL step" reasoning above turned out to
+apply only to the adapter's own visibility check (issue 02), not to this
+CLI wiring. Completed the two remaining checkboxes on that basis:
+
+- `SharedExpenseCLI._choose_split` (new): prompts for a split method
+  (Equal / Exact Amount / Percentage) after participant selection, for all
+  `participant_ids` (payer included, mirroring `compute_equal_split`'s
+  signature and issue 06's earlier "all Participants, including payer"
+  decision). Equal calls `compute_equal_split` directly (unchanged
+  behavior, now behind an explicit method choice instead of being the only
+  option).
+- `SharedExpenseCLI._prompt_split` (new): shared re-prompt loop for Exact
+  Amount and Percentage. Lists the chosen Participants by name, then reads
+  one comma-separated line of values in that same order, builds a
+  `{participant_id: Decimal}` mapping, and calls the given core split
+  function. Catches `ValueError` (bad sum, from the core) and
+  `decimal.InvalidOperation` (unparseable input) alike, prints the error,
+  and re-prompts on the same line rather than restarting the whole
+  transaction.
+- Tests: `tests/main/test_shared_expense_cli.py` grew from 7 to 11 tests —
+  added Exact Amount and Percentage happy-path tests plus one re-prompt
+  test per method (bad sum on the first attempt, valid on the second). The
+  7 existing tests were updated in place to add the new split-method-choice
+  input ("1" for Equal) at the point in their input sequence where it now
+  occurs — an intentional interface change (a new required prompt), not a
+  behavior regression; all now pass alongside the new tests.
+- No changes to `src/core/split.py` — both functions were already correct
+  and fully covered from the prior session's work on this issue.
+- Full suite (`poetry run pytest`) is green at 102 tests; `flake8` and
+  `isort` clean; `black` reformatted `expense_cli.py` (pre-existing
+  unrelated `black` diff in `extract_wise_transactions.py` left untouched,
+  out of scope for this issue).
