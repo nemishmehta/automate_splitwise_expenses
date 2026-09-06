@@ -125,6 +125,9 @@ celerybeat.pid
 env/
 venv/
 ENV/
+
+# Local per-operator Spliit Payer Configuration (issue 02)
+who_am_i.json
 env.bak/
 venv.bak/
 
