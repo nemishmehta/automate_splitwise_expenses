@@ -8,10 +8,9 @@ Originally built against [Splitwise](https://secure.splitwise.com/), the tool no
 
 The following pre-requisites are required before using the tool.
 1. Clone this repo.
-2. Install [Poetry](https://python-poetry.org/docs/#installation) on your local system.
-3. Run the following commands:
-    - `poetry shell`
-    - `poetry install`
+2. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) on your local system.
+3. Run the following command:
+    - `uv sync`
 4. Spliit has no account/login - create the Group(s) you want to record expenses under directly at [spliit.app](https://spliit.app/), and note each Group's id (the path segment right after `groups/` in its URL, e.g. `https://spliit.app/groups/<GROUP_ID>/expenses`).
 
 ## Usage
@@ -22,20 +21,20 @@ Turning a bank export into Expenses recorded in Spliit is a three-phase process.
 
 1. You'll need a csv of the transactions you'd like to record (can be downloaded from your bank account).
 2. Clean it into a normalized format ready for the next phases:
-    - `poetry run python -m src.scripts.run_clean_csv <path to the csv file>`
+    - `uv run python -m src.scripts.run_clean_csv <path to the csv file>`
 3. Depending on the contents of the file, you will be asked a series of prompts that will be used to clean the csv file.
 4. Once the file has been cleaned, it will be stored in the following directory `src/data/clean/` with the following name `<file name>_clean.csv`
 
 ### Phase 2: One-time per-Group setup ("who am I")
 
 Spliit has no login, so before a Group can be used at all, the tool needs to know once which Participant is you:
-- `poetry run python -m src.scripts.run_configure_who_am_i --group-id <GROUP_ID>`
+- `uv run python -m src.scripts.run_configure_who_am_i --group-id <GROUP_ID>`
 
 This lists the Group's Participants, asks which one is you, and saves the answer locally (`who_am_i.json`, not committed) so it's never asked again for that Group. Every Group you want to submit Expenses against - Personal or Shared alike - must be registered this way at least once before it appears in Phase 3's Group picker.
 
 ### Phase 3: Submit expenses
 
-- `poetry run python -m src.scripts.run_expense_cli src/data/clean/<file name>_clean.csv`
+- `uv run python -m src.scripts.run_expense_cli src/data/clean/<file name>_clean.csv`
 
 Review each transaction from the cleaned csv one at a time. For each one you confirm, you choose a registered Group; that Group's Participant count then decides the rest automatically:
 - **Personal Expense** (a Group containing only yourself): submits immediately, no further prompts.
