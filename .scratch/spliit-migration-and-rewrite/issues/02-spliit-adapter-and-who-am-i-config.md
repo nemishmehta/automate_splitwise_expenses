@@ -8,7 +8,7 @@
 
 - [x] The adapter implements list Groups, list a Group's Participants, list Categories, and create an Expense against the real Spliit hosted instance
 - [x] A configuration mechanism exists to record which Participant is "you" (the **Payer Configuration**, see `CONTEXT.md`) for each Group, set once and reused on subsequent runs without re-asking
-- [ ] Creating an Expense through this adapter results in a real Expense visible in the corresponding Spliit Group
+- [x] Creating an Expense through this adapter results in a real Expense visible in the corresponding Spliit Group
 - [x] Existing Splitwise Groups, Participants, and expense history are left untouched by this work
 
 ## Design decisions (resolved pre-implementation, see [ADR 0002](../../../docs/adr/0002-spliit-client-dependency-and-payer-identity.md))
